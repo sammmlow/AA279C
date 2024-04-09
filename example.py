@@ -154,7 +154,7 @@ print("Final S/C quaternion = ", sc.attBN, "\n")
 
 # Print out the resulting DCM
 print("Final S/C quaternion (as a DCM) = ")
-print(sc.attBN.dcm)
+print(sc.attBN.dcm, "\n")
 
 # Note that an application of quaternion operations on the spacecraft attitude
 # will effect changes to both the DCM and quaternions. States are consistent.
@@ -164,5 +164,29 @@ print(sc.attBN.dcm)
 
 # There are also other attitude implementations, but I haven't tested those
 # against a third party software (unlike the orbit propagation one)...
+
+
+# Check the default inertia tensor (should be diagonal matrix of tens)
+print("S/C moment of inertia tensor = ")
+print(sc.inertia, "\n")
+
+# Check that the angular velocity (by default) is zero. Therefore, propagating 
+# the body to inertial attitude should return the same attitude.
+print("Check: initial angular velocity should be zero: ", sc.ohmBN, "\n")
+
+# Attitude propagation under testing! Not sure if this is correct.
+
+# Assign an angular velocity, assign a torque, and propagate the attitude.
+arbitrary_omega  = [1.23e-3, 4.56e-3, 7.89e-3]
+arbitrary_torque = [1.23e-6, 4.56e-6, 7.89e-6]
+sc.ohmBN = arbitrary_omega;
+
+# Propagate for three steps of 1.0 second each...
+sc.propagate_attitude(dt = 1.0, torque = arbitrary_torque)
+sc.propagate_attitude(dt = 1.0, torque = arbitrary_torque)
+sc.propagate_attitude(dt = 1.0, torque = arbitrary_torque)
+
+# Check the status of the final spacecraft!
+sc.status()
 
 # Hope these tools help make our work more efficient for this course!
