@@ -1,0 +1,24 @@
+# REDUCED ORDER MODEL:
+# Moments of inertia ( kg m^2 ) taken at center of mass
+# Mass = 5807.722541 kilograms
+# Volume = 9.831812 cubic meters
+# np.array([[ 4.32932955e+03,  6.30220000e-02, -2.57651990e+01],
+#           [ 6.30220000e-02,  5.78019783e+03, -4.80170000e-02],
+#           [-2.57651990e+01, -4.80170000e-02,  6.88279862e+03]])
+
+# HIGHER-FIDELITY SOLIDWORKS MODEL: FULLY EXTENDED ARMS CONFIGURATION
+# Moments of inertia: ( kilograms * square meters )
+# Mass = 5868.709761 kilograms
+# Volume = 9.925987 cubic meters
+# Taken at the center of mass
+# np.array([[ 4.83280340e+03,  7.09621000e-01, -6.76364900e+00],
+#           [ 7.09621000e-01,  6.19400473e+03, -5.09201000e-01],
+#           [-6.76364900e+00, -5.09201000e-01,  7.54852565e+03]])
+
+# HIGHER-FIDELITY SOLIDWORKS MODEL: STOWED PANELS AND ARMS CONFIGURATION
+# Moments of inertia: ( kilograms * square meters )
+# Mass = 5868.709761 kilograms
+# Volume = 9.925987 cubic meters
+# np.array([[ 3.46850833e+03, -2.00679600e+00, -9.16264900e+00],
+#           [-2.00679600e+00,  6.04971317e+03, -2.55400800e+00],
+#           [-9.16264900e+00, -2.55400800e+00,  6.25542166e+03]])
