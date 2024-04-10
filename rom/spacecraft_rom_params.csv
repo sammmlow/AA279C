@@ -1,0 +1,12 @@
+var,value
+rhub,0.625
+hhub,1.25
+wsolarpanel,1
+lsolarpanel,4
+hsolarpanel,0.01
+rfueltank,1.25
+tfueltank,0.01
+rantenna,0.5
+hantenna,0.025
+rdockingport,0.5
+hdockingport,0.15
