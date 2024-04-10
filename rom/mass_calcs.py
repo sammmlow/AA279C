@@ -4,22 +4,7 @@
 # Authors: Daniel Neamati and Sam Low
 
 import numpy as np
-import csv
-
-# abstract function to read a csv file and load in
-# the keys as strings and the values as floats.
-def read_param_csv(file_name: str):
-    with open(file_name, newline='') as csvfile:
-        reader = csv.reader(csvfile)
-        # Ignore the first row of the csv file
-        next(reader)
-
-        output_dict = {}
-
-        for row in reader:
-            output_dict[row[0]] = float(row[1])
-
-    return output_dict
+from rom_utils import read_param_csv
 
 # load in the density params from file as dictionary
 density_param_file = "rom/density_output.csv"
@@ -71,16 +56,24 @@ volumes = [hub_volume, solar_panel_volume, fuel_tank_volume,
 # 1 g/cm^3 = 1000 kg/m^3
 masses = [density_params[part_name] * 1000 * volume
           for part_name, volume in zip(part_names, volumes)]
+total_mass = sum(masses)
 
 # Print the results
 units = "kg"
 for name_part, mass_part in zip(part_names, masses):
     print(f"{name_part:12} mass: {mass_part:.2f} {units}")
+print(f"Total mass: {total_mass:.2f} {units}")
 
+# Print the results in LaTeX format
+print("\nLaTeX format:")
+for name_part, mass_part in zip(part_names, masses):
+    print(f"{name_part} & {mass_part:.0f} {units} \\\\")
+print("\\hline")
+print(f"Total & {total_mass:.0f} {units}")
 
 # Save the volumes and masses to file
-mass_output_file = "rom/vol_mass_output.csv"
-with open(mass_output_file, "w") as f:
+vol_mass_output_file = "rom/vol_mass_output.csv"
+with open(vol_mass_output_file, "w") as f:
     f.write("Part, Volume (m^3), Mass (kg)\n")
     for name_part, volume, mass in zip(part_names, volumes, masses):
         f.write(f"{name_part},{volume:.3f},{mass:.2f}\n")
