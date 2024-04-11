@@ -96,3 +96,19 @@ for row in moi_assembly:
 # Save the MOI of the assembly to a file
 moi_assembly_param_file = "rom/moi_assembly_output.csv"
 np.savetxt(moi_assembly_param_file, moi_assembly, delimiter=",")
+
+
+# Calculate the principal axes and principal moments of inertia
+eigenvalues, eigenvectors = np.linalg.eig(moi_assembly)
+
+print("\n###############################################\n")
+
+print("Principal axes:")
+for eig_ind, eigenvector in enumerate(eigenvectors):
+    print(eig_ind, eigenvector)
+    print(np.linalg.norm(eigenvector))
+    print(f"{eigenvector[0]:.5f} & {eigenvector[1]:.5f} & {eigenvector[2]:.5f}")
+
+print("\nPrincipal moments of inertia:")
+for eigenvalue in eigenvalues:
+    print(f"{eigenvalue:.3f}")
