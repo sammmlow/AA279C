@@ -87,3 +87,12 @@ print(moi_assembly)
 np.set_printoptions(suppress=True)
 print()
 print(moi_assembly)
+
+# Print in LaTeX format
+print()
+for row in moi_assembly:
+    print(" & ".join([f"{val:.3f}" for val in row]) + " \\\\")
+
+# Save the MOI of the assembly to a file
+moi_assembly_param_file = "rom/moi_assembly_output.csv"
+np.savetxt(moi_assembly_param_file, moi_assembly, delimiter=",")
