@@ -63,6 +63,7 @@ print_area_dict(area_dict)
 def save_area_dict(area_dict_: dict, output_file: str):
     """Helper function to save the areas to a file."""
     with open(output_file, "w") as f:
+        f.write("Component,Area (m^2)\n")
         for key_, value_ in area_dict_.items():
             f.write(f"{key_},{value_}\n")
 

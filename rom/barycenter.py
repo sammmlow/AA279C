@@ -65,13 +65,21 @@ planar_barys["antenna"] = antenna_bary
 planar_barys["docking_port"] = docking_port_bary
 
 # Print the barycenters
-def print_bary_dict(bary_dict_: dict):
+def print_bary_dict(bary_dict_: dict, latex: bool = False):
     """Helper function to print the barycenters from a dictionary."""
     for key_, value_ in bary_dict_.items():
-        print(f"{key_} barycenter: {value_}")
+        if latex:
+            start_str = f"{key_:25} barycenter: "
+            vec_str = f"$( {value_[0]:.2f}, {value_[1]:.2f}, {value_[2]:.2f} )"
+            print(start_str + vec_str + "~\si{\meter}$")
+        else:
+            print(f"{key_} barycenter: {value_}")
 
 print("\n Planar Barycenters:")
 print_bary_dict(planar_barys)
+print()
+print("\n Planar Barycenters (Latex):")
+print_bary_dict(planar_barys, latex=True)
 
 # Save the barycenters to a file
 def save_bary_dict(bary_dict_: dict, output_file: str):
@@ -82,3 +90,8 @@ def save_bary_dict(bary_dict_: dict, output_file: str):
 
 bary_output_file = "rom/barycenter_planar_output.csv"
 save_bary_dict(planar_barys, bary_output_file)
+
+
+# For the projected areas, we can also print the LaTeX formatted values
+print("\n Projected Areas (Latex):")
+print_bary_dict(com_params, latex=True)
