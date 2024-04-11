@@ -60,6 +60,7 @@ volumes = [hub_volume,
            solar_panel_volume, solar_panel_volume,
            fuel_tank_volume, fuel_in_tank_volume,
            antenna_volume, docking_port_volume]
+total_volume = sum(volumes)
 
 # Calculate the mass of each part
 # Densities are in g/cm^3, volumes are in m^3
@@ -77,10 +78,12 @@ print(f"Total mass: {total_mass:.2f} {units}")
 
 # Print the results in LaTeX format
 print("\nLaTeX format:")
-for name_part, mass_part in zip(part_names_rom, masses):
-    print(f"{name_part} & {mass_part:.0f} {units} \\\\")
+latex_mass_units = "\si{\kilo\gram}"
+latex_vol_units = "\si{\cubic\meter}"
+for name_part, mass_part, vol_part in zip(part_names_rom, masses, volumes):
+    print(f"{name_part} & {mass_part:.0f} {latex_mass_units} & {vol_part:.2f} {latex_vol_units} \\\\")
 print("\\hline")
-print(f"Total & {total_mass:.0f} {units}")
+print(f"Total & {total_mass:.0f} {latex_mass_units} & {total_volume:.2f} {latex_vol_units} \\\\")
 
 # Save the volumes and masses to file
 vol_mass_output_file = "rom/vol_mass_output.csv"
