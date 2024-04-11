@@ -11,6 +11,14 @@ density_param_file = "rom/density_output.csv"
 density_params = read_param_csv(density_param_file)
 
 part_names = density_params.keys()
+# We have two solar panels!
+solar_panel = "Solar Panel"
+solar_panel_ind = 2
+part_names_rom = list(part_names).copy()
+part_names_rom.insert(solar_panel_ind, solar_panel)
+# Remove the arms, which are not part of the ROM
+part_names_rom = part_names_rom[:-1]
+print("part_names_rom: ", part_names_rom)
 
 # load in the spacecraft geometry rom params from file as dictionary
 geometry_param_file = "rom/spacecraft_rom_params.csv"
@@ -47,33 +55,42 @@ docking_port_volume = cylinder_volume(
     geometry_params["hdockingport"]
 )
 
-volumes = [hub_volume, solar_panel_volume, fuel_tank_volume,
-           fuel_in_tank_volume, antenna_volume, docking_port_volume]
+# Note that we have two! solar panels
+volumes = [hub_volume,
+           solar_panel_volume, solar_panel_volume,
+           fuel_tank_volume, fuel_in_tank_volume,
+           antenna_volume, docking_port_volume]
 
 # Calculate the mass of each part
 # Densities are in g/cm^3, volumes are in m^3
 # Let's use kg/m^3 for the density units
 # 1 g/cm^3 = 1000 kg/m^3
 masses = [density_params[part_name] * 1000 * volume
-          for part_name, volume in zip(part_names, volumes)]
+          for part_name, volume in zip(part_names_rom, volumes)]
 total_mass = sum(masses)
 
 # Print the results
 units = "kg"
-for name_part, mass_part in zip(part_names, masses):
+for name_part, mass_part in zip(part_names_rom, masses):
     print(f"{name_part:12} mass: {mass_part:.2f} {units}")
 print(f"Total mass: {total_mass:.2f} {units}")
 
 # Print the results in LaTeX format
 print("\nLaTeX format:")
-for name_part, mass_part in zip(part_names, masses):
+for name_part, mass_part in zip(part_names_rom, masses):
     print(f"{name_part} & {mass_part:.0f} {units} \\\\")
 print("\\hline")
 print(f"Total & {total_mass:.0f} {units}")
 
 # Save the volumes and masses to file
 vol_mass_output_file = "rom/vol_mass_output.csv"
+
+# Remove the redundant solar panel
+part_names_rom.remove(solar_panel)
+volumes.pop(solar_panel_ind)
+masses.pop(solar_panel_ind)
+
 with open(vol_mass_output_file, "w") as f:
     f.write("Part, Volume (m^3), Mass (kg)\n")
-    for name_part, volume, mass in zip(part_names, volumes, masses):
+    for name_part, volume, mass in zip(part_names_rom, volumes, masses):
         f.write(f"{name_part},{volume:.3f},{mass:.2f}\n")

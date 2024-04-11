@@ -32,7 +32,7 @@ def moi_cuboid(mass, width, length, height):
 
     return moi
 
-def moi_cylinder(mass, radius, height, axis=1):
+def moi_cylinder(mass, radius, height, axis=0):
     """
     Calculate the moment of inertia for a cylinder.
 
@@ -102,3 +102,38 @@ def moi_hollow_sphere(mass, radius):
 
     return (2/3) * mass * (radius**2) * np.eye(3)
 
+#################################
+#################################
+#################################
+
+def moi_tensor_parallel_axis(moi, mass, pos_vec):
+    """
+    Calculate the moment of inertia (moi) tensor about a new point where
+    the vector from the new point to the old point is pos_vec.
+
+    I_new = I_old + m * (pos_vec.pos_vec * I - pos_vec * pos_vec^T)
+
+    Parameters
+    ----------
+    moi : ndarray
+        The original moment of inertia tensor (3x3).
+    mass : float
+        Mass of the object.
+    pos_vec : ndarray
+        The vector from the new point to the old point (3x1).
+
+    Returns
+    -------
+    ndarray
+        The new moment of inertia tensor (3x3).
+    """
+    # Check the shapes are correct
+    assert moi.shape == (3, 3)
+    assert pos_vec.shape == (3,)
+
+    # Calculate the new moment of inertia tensor
+    diag_term = np.dot(pos_vec, pos_vec) * np.eye(3)
+    outer_term = np.outer(pos_vec, pos_vec)
+
+    # Put it all together
+    return moi + mass * (diag_term - outer_term)

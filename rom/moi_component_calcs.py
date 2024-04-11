@@ -22,7 +22,8 @@ geometry_params = read_param_csv(geometry_param_file)
 # Calculate the moments of inertia for each part about its center of mass
 hub_moi = moi_cylinder(
     vol_mass_params["Hub"],
-    geometry_params["rhub"], geometry_params["hhub"]
+    geometry_params["rhub"], geometry_params["hhub"],
+    axis=0
 )
 solar_panel_moi = moi_cuboid(
     vol_mass_params["Solar Panel"],
@@ -40,11 +41,13 @@ fuel_in_tank_moi = moi_solid_sphere(
 )
 antenna_moi = moi_cylinder(
     vol_mass_params["Antenna"],
-    geometry_params["rantenna"], geometry_params["hantenna"]
+    geometry_params["rantenna"], geometry_params["hantenna"],
+    axis=2
 )
 docking_port_moi = moi_cylinder(
     vol_mass_params["Docking Port"],
-    geometry_params["rdockingport"], geometry_params["hdockingport"]
+    geometry_params["rdockingport"], geometry_params["hdockingport"],
+    axis=0
 )
 
 # All the MOIs
