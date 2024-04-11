@@ -6,7 +6,7 @@ def read_param_csv(file_name: str):
     Abstract function to read a csv file and load in the keys as strings and
     the values as floats.
     """
-    with open(file_name, newline='') as csvfile:
+    with open(file_name, "r", newline='') as csvfile:
         reader = csv.reader(csvfile)
         # Ignore the first row of the csv file
         next(reader)
