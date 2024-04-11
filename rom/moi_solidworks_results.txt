@@ -2,9 +2,9 @@
 # Moments of inertia ( kg m^2 ) taken at center of mass
 # Mass = 5807.722541 kilograms
 # Volume = 9.831812 cubic meters
-# np.array([[ 4.32932955e+03,  6.30220000e-02, -2.57651990e+01],
-#           [ 6.30220000e-02,  5.78019783e+03, -4.80170000e-02],
-#           [-2.57651990e+01, -4.80170000e-02,  6.88279862e+03]])
+# np.array([[ 4.74955966e+03,  6.25490000e-02, -2.50324660e+01],
+#           [ 6.25490000e-02,  6.20157906e+03,  1.57100200e+00],
+#           [-2.50324660e+01,  1.57100200e+00,  7.30417809e+03]])
 
 # HIGHER-FIDELITY SOLIDWORKS MODEL: FULLY EXTENDED ARMS CONFIGURATION
 # Moments of inertia: ( kilograms * square meters )
