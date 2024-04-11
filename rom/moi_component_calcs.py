@@ -7,11 +7,11 @@ import numpy as np
 
 from moi_utils import moi_cuboid, moi_cylinder, \
     moi_solid_sphere, moi_hollow_sphere
-from rom_utils import read_param_csv
+from rom_utils import read_param_array_csv, read_param_csv
 
 # load in the mass params from file as dictionary
 vol_mass_param_file = "rom/vol_mass_output.csv"
-vol_mass_params = read_param_csv(vol_mass_param_file)
+vol_mass_params = read_param_array_csv(vol_mass_param_file)
 
 part_names = vol_mass_params.keys()
 
@@ -21,31 +21,31 @@ geometry_params = read_param_csv(geometry_param_file)
 
 # Calculate the moments of inertia for each part about its center of mass
 hub_moi = moi_cylinder(
-    vol_mass_params["Hub"],
+    vol_mass_params["Hub"][1],
     geometry_params["rhub"], geometry_params["hhub"],
     axis=0
 )
 solar_panel_moi = moi_cuboid(
-    vol_mass_params["Solar Panel"],
+    vol_mass_params["Solar Panel"][1],
     geometry_params["wsolarpanel"],
     geometry_params["lsolarpanel"],
     geometry_params["hsolarpanel"]
 )
 fuel_tank_moi = moi_hollow_sphere(
-    vol_mass_params["Fuel Tank"],
+    vol_mass_params["Fuel Tank"][1],
     geometry_params["rfueltank"]
 )
 fuel_in_tank_moi = moi_solid_sphere(
-    vol_mass_params["Fuel in Tank"],
+    vol_mass_params["Fuel in Tank"][1],
     geometry_params["rfueltank"]
 )
 antenna_moi = moi_cylinder(
-    vol_mass_params["Antenna"],
+    vol_mass_params["Antenna"][1],
     geometry_params["rantenna"], geometry_params["hantenna"],
     axis=2
 )
 docking_port_moi = moi_cylinder(
-    vol_mass_params["Docking Port"],
+    vol_mass_params["Docking Port"][1],
     geometry_params["rdockingport"], geometry_params["hdockingport"],
     axis=0
 )

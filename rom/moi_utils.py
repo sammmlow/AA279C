@@ -131,9 +131,17 @@ def moi_tensor_parallel_axis(moi, mass, pos_vec):
     assert moi.shape == (3, 3)
     assert pos_vec.shape == (3,)
 
+    # Check that the moi is symmetric
+    assert np.allclose(moi, moi.T)
+
     # Calculate the new moment of inertia tensor
     diag_term = np.dot(pos_vec, pos_vec) * np.eye(3)
     outer_term = np.outer(pos_vec, pos_vec)
 
     # Put it all together
-    return moi + mass * (diag_term - outer_term)
+    moi_new = moi + mass * (diag_term - outer_term)
+
+    # Check the new moi is symmetric
+    assert np.allclose(moi_new, moi_new.T)
+
+    return moi_new
