@@ -3,15 +3,9 @@
 ###############################################################################
 ###############################################################################
 ##                                                                           ##
-##      ___  _   _   __   ____  ____   __   _   _ _____                      ##
-##     / _ \| | | | /  \ |  _ \| __ \ /  \ | \ | |_   _|                     ##
-##    ( |_| ) |_| |/ /\ \| |_| | -/ // /\ \|  \| | | |                       ##
-##     \_  /|_____| /--\ |____/|_|\_\ /--\ |_\___| |_|                       ##
-##       \/                                               v 0.0              ##
-##                                                                           ##
 ##    Single spacecraft class.                                               ##
 ##                                                                           ##
-##    Written by Samuel Y. W. Low.                                           ##
+##    Written by Daniel Neamati and Samuel Y. W. Low.                                           ##
 ##    First created 02-May-2021 00:53 AM (+8 GMT)                            ##
 ##    Last modified 15-Mar-2022 13:05 AM (-8 GMT)                            ##
 ##                                                                           ##
@@ -759,6 +753,12 @@ class Spacecraft():
         h_hat = hC / np.linalg.norm(hC) # Local Z-axis
         y_hat = np.cross(h_hat, r_hat)  # Local Y-axis
         return np.array([r_hat, y_hat, h_hat])
+
+    # Internal function used to propagate only the angular velocity (not the
+    # attitude). Not very useful, defining this just to answer AA279C PS2.
+    def propagate_omega(self, dt, torque):
+        gyroscopic = np.cross( self.ohmBN, self.inertia @ self.ohmBN )
+
     
     # Propagate the attitude of the vehicle given a reference and torque.
     # Note that torques and angular velocities must be in the body frame.
