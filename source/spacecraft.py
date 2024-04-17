@@ -753,12 +753,6 @@ class Spacecraft():
         h_hat = hC / np.linalg.norm(hC) # Local Z-axis
         y_hat = np.cross(h_hat, r_hat)  # Local Y-axis
         return np.array([r_hat, y_hat, h_hat])
-
-    # Internal function used to propagate only the angular velocity (not the
-    # attitude). Not very useful, defining this just to answer AA279C PS2.
-    def propagate_omega(self, dt, torque):
-        gyroscopic = np.cross( self.ohmBN, self.inertia @ self.ohmBN )
-
     
     # Propagate the attitude of the vehicle given a reference and torque.
     # Note that torques and angular velocities must be in the body frame.
@@ -773,10 +767,10 @@ class Spacecraft():
         if self.attBN.strID() == 'QTR' and self.attBR.strID() == 'QTR':
             if self.attBN[0] < 0.0:
                 self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
-            qDotBN = self.attBN.get_qtrRate( self.ohmBN )
+            # qDotBN = self.attBN.get_qtrRate( self.ohmBN )
             self.ohmBN = self.ohmBN + ( dt * wDotBN )
-            self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-            self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+            # self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
+            # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
         
         # # Check if the coordinate type is an MRP
         # elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
