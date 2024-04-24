@@ -47,6 +47,10 @@ def density(R):
 
     '''
     
+    # Return zero for anything higher than 1000km.
+    if R >= 1000:
+        return 0.0
+    
     # Altitude i-th data points in Ra[i] for US Standard Atmosphere 1976
     Ra = [86, 91, 100, 110, 120, 150, 200, 300, 500, 750, 1000]
     Ri = bisect.bisect(Ra, R)
