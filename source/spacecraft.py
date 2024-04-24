@@ -714,7 +714,7 @@ class Spacecraft():
             self.__dict__['vR'] = v_rtn[0]
             self.__dict__['vT'] = v_rtn[1]
             self.__dict__['vN'] = v_rtn[2]
-    
+
     # TODO: ROEs and RTN needs to be updated whenever absolute motion is updated
     def update_relative_motion(self):
         self._update_elements_roe()
@@ -762,30 +762,28 @@ class Spacecraft():
         inertia_inverse = np.linalg.inv( self.inertia )
         gyroscopic = np.cross( self.ohmBN, self.inertia @ self.ohmBN )
         wDotBN = inertia_inverse @ ( torque - gyroscopic )
+        self.ohmBN = self.ohmBN + ( dt * wDotBN )
         
         # Check if the coordinate type is a quaternion.
         if self.attBN.strID() == 'QTR' and self.attBR.strID() == 'QTR':
             if self.attBN[0] < 0.0:
                 self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
-            # qDotBN = self.attBN.get_qtrRate( self.ohmBN )
-            self.ohmBN = self.ohmBN + ( dt * wDotBN )
-            # self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-            # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+            qDotBN = self.attBN.get_qtrRate( self.ohmBN )
+            self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
+            self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
         
-        # # Check if the coordinate type is an MRP
-        # elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
-        #     if self.attBN[0] < 0.0:
-        #         self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
-        #     qDotBN = self.attBN.get_qtrRate( self.ohmBN )
-        #     self.ohmBN = self.ohmBN + ( dt * wDotBN )
-        #     self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-        #     self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+        # Check if the coordinate type is an MRP
+        elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
+            mDotBN = self.attBN.get_mrpRate( self.ohmBN )
+            self.attBN.mrp = self.attBN.mrp + ( dt * mDotBN )
+            self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+            
+            # Switching to shadow set
+            if abs(self.attBN.mrp) > 1.0:
+                self.attBN.mrp = self.attBN.mrp._mrp_shadow;
         else:
-            
-            # NEED TO IMPLEMENT AN ATTITUDE PROPAGATION FOR CRPs AND MRPs!
-            
-            print('No quaternion detected in attitude propagation!')
-            raise TypeError('MRP and CRP not implemented yet! To be fixed.')
+            print('Current attitude representation:', self.attBN.strID())
+            raise TypeError('Current attitude coordinate not supported!')
     
     # Two-body Keplerian propagator. Analytical, so no time step required.
     def propagate_orbit(self, dt):
