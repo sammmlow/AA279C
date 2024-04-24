@@ -5,7 +5,7 @@
 ##                                                                           ##
 ##    Single spacecraft class.                                               ##
 ##                                                                           ##
-##    Written by Daniel Neamati and Samuel Y. W. Low.                                           ##
+##    Written by Daniel Neamati and Samuel Y. W. Low.                        ##
 ##    First created 02-May-2021 00:53 AM (+8 GMT)                            ##
 ##    Last modified 15-Mar-2022 13:05 AM (-8 GMT)                            ##
 ##                                                                           ##
@@ -754,6 +754,8 @@ class Spacecraft():
         y_hat = np.cross(h_hat, r_hat)  # Local Y-axis
         return np.array([r_hat, y_hat, h_hat])
     
+    # TODO: User may set QTR for attBN and MRP for attBR? Risky. Should check.
+    
     # Propagate the attitude of the vehicle given a reference and torque.
     # Note that torques and angular velocities must be in the body frame.
     def propagate_attitude(self, dt, torque):
@@ -770,13 +772,12 @@ class Spacecraft():
                 self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
             qDotBN = self.attBN.get_qtrRate( self.ohmBN )
             self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-            self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+            # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
         
         # Check if the coordinate type is an MRP
         elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
             mDotBN = self.attBN.get_mrpRate( self.ohmBN )
             self.attBN.mrp = self.attBN.mrp + ( dt * mDotBN )
-            self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
             
             # Switching to shadow set
             if abs(self.attBN.mrp) > 1.0:
