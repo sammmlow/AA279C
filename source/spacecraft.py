@@ -772,6 +772,7 @@ class Spacecraft():
                 self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
             qDotBN = self.attBN.get_qtrRate( self.ohmBN )
             self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
+            self.attBN.normalise();
             # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
         
         # Check if the coordinate type is an MRP
@@ -780,8 +781,8 @@ class Spacecraft():
             self.attBN.mrp = self.attBN.mrp + ( dt * mDotBN )
             
             # Switching to shadow set
-            if abs(self.attBN.mrp) > 1.0:
-                self.attBN.mrp = self.attBN.mrp._mrp_shadow;
+            if np.linalg.norm(self.attBN.mrp) > 1.0:
+                self.attBN.set_mrp_shadow();
         else:
             print('Current attitude representation:', self.attBN.strID())
             raise TypeError('Current attitude coordinate not supported!')

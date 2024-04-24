@@ -515,10 +515,6 @@ class MRP:
     def __len__(self):
         return len(self.mrp)
     
-    def _mrp_shadow(self):
-        self.mrp = -1 * self.mrp / np.dot(self.mrp,self.mrp)
-        return self.mrp
-    
     # Method for conversion of a direction cosine matrix into a MRP. This
     # function will always provide the inner MRP set where |mrp| <= 1.
     def _dcm2mrp(self, dcm):
@@ -550,6 +546,10 @@ class MRP:
         dcm = dcm + np.eye(3)
         self.dcm = dcm
         return self.dcm
+    
+    # Method for switching current MRP to its shadow set
+    def set_mrp_shadow(self):
+        self.mrp = -1 * self.mrp / np.dot(self.mrp,self.mrp)
         
     # Method for computing the differential equation in MRP vector form given
     # the self MRP and an angular velocity vector. Note that the attitude
