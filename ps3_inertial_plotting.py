@@ -64,15 +64,15 @@ if True:
 # We will plot the xyz triad as RGB lines using the DCM rotation matrix in 3D.
 # Only plot one satellite at a time
 
-num_skip = 20 #200
+num_skip = 20 #20 #200
 len_tot = min(len(mrp_satellite_df), len(qtr_satellite_df))
-max_i = min(len_tot, 800)# np.inf)
+max_i = min(len_tot, 800) # 800)# np.inf)
 num_times_plotted = max_i // num_skip + 1
 alpha_linear_scaled = np.linspace(0, 1, num_times_plotted, endpoint=True)
 print(f"Length of alpha scaling is {len(alpha_linear_scaled)}")
 # Viewpoint in 3D for the plot
-# viewpoint = {"elev": 20, "azim": -10}
-viewpoint = {"elev": 22, "azim": -59}
+viewpoint = {"elev": 20, "azim": -10}
+# viewpoint = {"elev": 22, "azim": -59}
 
 if True:
 
@@ -133,7 +133,8 @@ if True:
 
         # Save the figure
         el, az = viewpoint["elev"], viewpoint["azim"]
-        fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
+        fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png",
+                    dpi=300)
 
 
 
@@ -236,7 +237,8 @@ if True:
         plt.show()
 
         # Save the figure
-        fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
+        fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png",
+                    dpi=300)
 
 
 # Calculate the angular momentum in the body frame, and plot it
@@ -302,7 +304,8 @@ if True:
         plt.show()
 
         # Save the figure
-        fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
+        fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png",
+                    dpi=300)
 
 
 # Check the norm of the angular momentum, it should be constant
@@ -335,7 +338,8 @@ if True:
     plt.show()
 
     # Save the figure
-    fig.savefig(f"ps3_data/angular_momentum_norm_max{max_i}_skip{num_skip}.png")
+    fig.savefig(f"ps3_data/angular_momentum_norm_max{max_i}_skip{num_skip}.png",
+                    dpi=300)
 
 
 # Plot four subplots with the angular momentum components and norm for each satellite
@@ -366,7 +370,8 @@ plt.tight_layout()
 plt.show()
 
 # Save the figure
-fig.savefig(f"ps3_data/angular_momentum_components_max{max_i}_skip{num_skip}.png")
+fig.savefig(f"ps3_data/angular_momentum_components_max{max_i}_skip{num_skip}.png",
+                    dpi=300)
 
 # Now that we have the angular momentum in the inertial frame, we can calculate the
 # plane of the herpolhode, and plot it with the angular velocity in the inertial frame
@@ -403,4 +408,5 @@ plt.grid()
 plt.show()
 
 # Save the figure
-fig.savefig(f"ps3_data/herpolhode_constant_max{max_i}_skip{num_skip}.png")
+fig.savefig(f"ps3_data/herpolhode_constant_max{max_i}_skip{num_skip}.png",
+                    dpi=300)
