@@ -12,8 +12,8 @@ initial_inertia = np.diag([4770.398, 6313.894, 7413.202])
 zero_torque = np.array([0.0, 0.0, 0.0])
 
 # Set duration, time step, and a container of angular velocity states
-now, duration, timestep, n = 0.0, 360, 0.1, 0
-samples = int(duration / timestep)
+now, duration, timestep, n = 0.0, 360, 0.01, 0
+samples = int(duration / timestep) + 1
 
 # Define container variables for the angular velocities and the attitudes
 states_omega = np.zeros(( samples, 3, 2 )) # samples x coords x types

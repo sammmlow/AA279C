@@ -13,7 +13,7 @@ initial_inertia = np.diag([4770.398, 6313.894, 7413.202])  # kg m^2
 
 zero_torque = np.array([0.0, 0.0, 0.0]) # N m
 
-initial_angular_momentum = np.dot(initial_inertia, initial_omega)
+initial_angular_momentum = initial_inertia @ initial_omega
 print(f"Initial angular momentum: {initial_angular_momentum} kg m^2/s")
 
 
@@ -24,7 +24,7 @@ qtr_satellite_df = pd.read_csv("ps3_data/qtr_satellite.csv")
 print(qtr_satellite_df)
 
 
-if False:
+if True:
     # Plot the angular velocities in the principal frame, to check
     plt.figure()
 
@@ -41,7 +41,7 @@ if False:
     plt.grid()
     plt.show()
 
-if False:
+if True:
     # Plot parametrically as the polhode in 3D
     plt.figure()
     ax = plt.axes(projection='3d')
@@ -64,16 +64,16 @@ if False:
 # We will plot the xyz triad as RGB lines using the DCM rotation matrix in 3D.
 # Only plot one satellite at a time
 
-num_skip = 2
+num_skip = 2000
 len_tot = min(len(mrp_satellite_df), len(qtr_satellite_df))
 max_i = min(len_tot, np.inf)
-num_times_plotted = max_i // num_skip
+num_times_plotted = max_i // num_skip + 1
 alpha_linear_scaled = np.linspace(0, 1, num_times_plotted, endpoint=True)
 print(f"Length of alpha scaling is {len(alpha_linear_scaled)}")
 # Viewpoint in 3D for the plot
 viewpoint = {"elev": 20, "azim": -10}
 
-if False:
+if True:
 
     for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
         fig = plt.figure()
@@ -114,7 +114,7 @@ if False:
             ax.plot3D([0, x[0]], [0, x[1]], [0, x[2]], "r", alpha=alpha)
             ax.plot3D([0, y[0]], [0, y[1]], [0, y[2]], "g", alpha=alpha)
             ax.plot3D([0, z[0]], [0, z[1]], [0, z[2]], "b", alpha=alpha)
-        
+
         ax.set_xlabel("x")
         ax.set_ylabel("y")
         ax.set_zlabel("z")
@@ -141,12 +141,14 @@ if False:
 # First, calculate the angular velocities in the inertial frame
 omega_inertial_history_per_sat = []
 dcms_history_per_sat = []
+times_history_per_sat = []
 
 for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
 
     # Make list to store the history of the angular velocities
     omega_inertial_history = []
     dcm_history = []
+    times_history = []
 
     # Make an attitude class to convert the MRP or QTR to a DCM
     if sat_name == "MRP":
@@ -162,6 +164,9 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
         if i >= max_i:
             break
 
+        # Store the time
+        times_history.append(row["time"])
+
         # Convert the MRP or QTR to a DCM
         if sat_name == "MRP":
             dcm = sat_att._mrp2dcm([row["a0"], row["a1"], row["a2"]])
@@ -170,11 +175,16 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
 
         # Rotate the angular velocity to the body frame
         omega_body = np.array([row["wx"], row["wy"], row["wz"]])
-        omega_inertial = np.dot(dcm.T, omega_body)
+        omega_inertial = dcm.T @ omega_body
         # omega_inertial = np.dot(dcm, omega_body)
 
+        # Store the angular velocity in the inertial frame
         omega_inertial_history.append(omega_inertial)
+        # Store the DCM
         dcm_history.append(dcm)
+
+        # Store the times for each satellite
+        times_history_per_sat.append(times_history)
     
     # Store the history of the angular velocities and the DCMs
     omega_inertial_history_per_sat.append(omega_inertial_history)
@@ -184,7 +194,7 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
 # Then we will plot the angular velocities in the inertial frame
 
 # Do this per satellite
-if False:
+if True:
     for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat):
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -242,7 +252,7 @@ for sat_name, sat_ang_vel, sat_dcm in zip(["MRP", "QTR"],
 
     for omega_inertial_curr, dcm_curr in zip(sat_ang_vel, sat_dcm):
         # Calculate the angular momentum in the inertial frame
-        # L = I * omega
+        # L = I @ omega
         # Which means we need I in the inertial frame
         inertia_inertial_frame = dcm_curr.T @ initial_inertia @ dcm_curr
         # inertia_inertial_frame = dcm_curr @ initial_inertia @ dcm_curr.T
@@ -288,3 +298,35 @@ for sat_name, sat_ang_mom in zip(["MRP", "QTR"], angular_momentum_history_per_sa
 
     # Save the figure
     fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}.png")
+
+
+# Check the norm of the angular momentum, it should be constant
+
+fig = plt.figure()
+
+print("\nPlotting norm of the angular momentum\n")
+
+for sat_name, sat_ang_mom, sat_times in zip(["MRP", "QTR"], 
+                                            angular_momentum_history_per_sat,
+                                            times_history_per_sat):
+    print(f"Length of angular momentum history for {sat_name} is {len(sat_ang_mom)}")
+    angular_momentum_norm = np.linalg.norm(np.array(sat_ang_mom), axis=1)
+
+    # Plot the norm of the angular momentum    
+    plt.plot(sat_times, angular_momentum_norm, label=sat_name,
+             linestyle="--" if sat_name == "MRP" else ":")
+    
+    # Plot the x component of the angular momentum to sanity check
+    # plt.plot(sat_times, np.array(sat_ang_mom)[:, 0], label=f"{sat_name} x",
+    #          linestyle="--" if sat_name == "MRP" else ":")
+
+print("Finished for loop\n")
+
+plt.xlabel("Time [s]")
+plt.ylabel("Angular Momentum Norm [kg m^2/s]")
+plt.legend()
+plt.grid()
+plt.show()
+
+# Save the figure
+fig.savefig(f"ps3_data/angular_momentum_norm_max{max_i}_skip{num_skip}.png")
