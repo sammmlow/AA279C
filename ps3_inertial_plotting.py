@@ -140,11 +140,13 @@ if False:
 
 # First, calculate the angular velocities in the inertial frame
 omega_inertial_history_per_sat = []
+dcms_history_per_sat = []
 
 for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
 
     # Make list to store the history of the angular velocities
     omega_inertial_history = []
+    dcm_history = []
 
     # Make an attitude class to convert the MRP or QTR to a DCM
     if sat_name == "MRP":
@@ -172,15 +174,88 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
         # omega_inertial = np.dot(dcm, omega_body)
 
         omega_inertial_history.append(omega_inertial)
+        dcm_history.append(dcm)
     
-    # Store the history of the angular velocities
+    # Store the history of the angular velocities and the DCMs
     omega_inertial_history_per_sat.append(omega_inertial_history)
+    dcms_history_per_sat.append(dcm_history)
 
 
 # Then we will plot the angular velocities in the inertial frame
 
 # Do this per satellite
-for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat):
+if False:
+    for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat):
+        fig = plt.figure()
+        ax = plt.axes(projection='3d')
+
+        # Set the viewpoint
+        ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
+
+        # Stack the history of the angular velocities as np array (time, 3)
+        omega_inertial_history = np.array(sat_ang_vel)
+        assert omega_inertial_history.shape[1] == 3
+
+        # Just plot the tip of the angular velocity vector
+        # Plot by alpha which requires plotting each point separately
+        for (wxi, wyi, wzi), alpha in zip(sat_ang_vel, alpha_linear_scaled):
+            ax.scatter3D(wxi, wyi, wzi, color="k", alpha=alpha)
+
+        # ax.scatter3D(omega_inertial_history[:, 0], 
+        #              omega_inertial_history[:, 1], 
+        #              omega_inertial_history[:, 2], 
+        #              c=alpha_linear_scaled,
+        #              cmap="gray",
+        #              alpha=alpha_linear_scaled)
+
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        
+        ax.axis("equal")
+        
+        # Use more human names for the title
+        if sat_name == "MRP":
+            title_name = "Herpolhode when using the Modified Rodrigues Parameters"
+        else:
+            title_name = "Herpolhode when using the Quaternions"
+
+        plt.title(title_name)
+        plt.show()
+
+        # Save the figure
+        fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}.png")
+
+
+# Calculate the angular momentum in the body frame, and plot it
+# It should be constant, and equal to the initial angular momentum
+
+# Do this per satellite. Again calculate first (no plotting).
+angular_momentum_history_per_sat = []
+
+for sat_name, sat_ang_vel, sat_dcm in zip(["MRP", "QTR"], 
+                                          omega_inertial_history_per_sat,
+                                          dcms_history_per_sat):
+
+    # Make list to store the history of the angular velocities
+    angular_momentum_history = []
+
+    for omega_inertial_curr, dcm_curr in zip(sat_ang_vel, sat_dcm):
+        # Calculate the angular momentum in the inertial frame
+        # L = I * omega
+        # Which means we need I in the inertial frame
+        inertia_inertial_frame = dcm_curr.T @ initial_inertia @ dcm_curr
+        # inertia_inertial_frame = dcm_curr @ initial_inertia @ dcm_curr.T
+
+        angular_momentum_body = inertia_inertial_frame @ omega_inertial_curr
+        angular_momentum_history.append(angular_momentum_body)
+    
+    # Store the history of the angular velocities
+    angular_momentum_history_per_sat.append(angular_momentum_history)
+
+# Now plot the angular momentum in the inertial frame per satellite
+
+for sat_name, sat_ang_mom in zip(["MRP", "QTR"], angular_momentum_history_per_sat):
     fig = plt.figure()
     ax = plt.axes(projection='3d')
 
@@ -188,20 +263,13 @@ for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat)
     ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
 
     # Stack the history of the angular velocities as np array (time, 3)
-    omega_inertial_history = np.array(sat_ang_vel)
-    assert omega_inertial_history.shape[1] == 3
+    angular_momentum_history = np.array(sat_ang_mom)
+    assert angular_momentum_history.shape[1] == 3
 
-    # Just plot the tip of the angular velocity vector
+    # Just plot the tip of the angular momentum vector
     # Plot by alpha which requires plotting each point separately
-    for (wxi, wyi, wzi), alpha in zip(sat_ang_vel, alpha_linear_scaled):
-        ax.scatter3D(wxi, wyi, wzi, color="k", alpha=alpha)
-
-    # ax.scatter3D(omega_inertial_history[:, 0], 
-    #              omega_inertial_history[:, 1], 
-    #              omega_inertial_history[:, 2], 
-    #              c=alpha_linear_scaled,
-    #              cmap="gray",
-    #              alpha=alpha_linear_scaled)
+    for (lxi, lyi, lzi), alpha in zip(sat_ang_mom, alpha_linear_scaled):
+        ax.scatter3D(lxi, lyi, lzi, color="k", alpha=alpha)
 
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -211,19 +279,12 @@ for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat)
     
     # Use more human names for the title
     if sat_name == "MRP":
-        title_name = "Herpolhode when using the Modified Rodrigues Parameters"
+        title_name = "Angular Momentum when using the Modified Rodrigues Parameters"
     else:
-        title_name = "Herpolhode when using the Quaternions"
+        title_name = "Angular Momentum when using the Quaternions"
 
     plt.title(title_name)
     plt.show()
 
     # Save the figure
-    fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}.png")
-
-
-# Calculate the angular momentum in the body frame, and plot it
-# It should be constant, and equal to the initial angular momentum
-
-# Do this per satellite
-
+    fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}.png")
