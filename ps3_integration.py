@@ -18,6 +18,7 @@ samples = int(duration / timestep)
 # Define container variables for the angular velocities and the attitudes
 states_omega = np.zeros(( samples, 3, 2 )) # samples x coords x types
 states_attitude = np.zeros(( samples, 4, 2 )) # samples x coords x types
+states_time = np.zeros(( samples, 1 )) # samples x 1
 
 # Initialize the Ladybug using Quaternions.
 sc1 = Spacecraft(elements = initial_elements,
@@ -36,25 +37,50 @@ sc2.attBN = MRP([0, 0, 0])  # Set initial body to inertial attitude
 sc2.attBR = MRP([0, 0, 0])  # Set initial body to reference attitude
 
 while now < duration:
-    
+    # Sent the time here to be sure (more flexible that a fixed timestep)
+    states_time[n] = now
+
+    # Store the angular velocities
     states_omega[n, 0:3, 0] = np.array(
         [ sc1.ohmBN[0], sc1.ohmBN[1], sc1.ohmBN[2] ])
     states_omega[n, 0:3, 1] = np.array(
         [ sc2.ohmBN[0], sc2.ohmBN[1], sc2.ohmBN[2] ])
     
-    
-    
+    # Store the attitudes
     states_attitude[n, 0:4, 0] = np.array(
         [ sc1.attBN[0], sc1.attBN[1], sc1.attBN[2], sc1.attBN[3] ])  # QTR
     states_attitude[n, 0:3, 1] = np.array(
         [ sc2.attBN[0], sc2.attBN[1], sc2.attBN[2] ])                # MRP
     
+    # Propagate the attitude and the angular velocity
     sc1.propagate_attitude(timestep, zero_torque)
     sc2.propagate_attitude(timestep, zero_torque)
     
     now += timestep
     n += 1
     
+
+# Save the results as a csv
+def save_csv(filename, time_data, omega_data, attitude_data, satellite_id):
+    # Make the header
+    # time, omega, and attitude (qtr or mrp)
+    header = 'time,wx,wy,wz,a0,a1,a2,a3'
+
+    # Stack into a single array (rows are time and columns are data)
+    data = np.hstack((time_data, 
+                      omega_data[:, :, satellite_id], 
+                      attitude_data[:, :, satellite_id]))
+    
+    print(f"Saving to {filename}. Data has shape {data.shape}")
+    return np.savetxt(filename, data, delimiter=',', header=header, comments='')
+
+
+# Save each satellite data separately
+save_csv('ps3_data/qtr_satellite.csv', states_time, states_omega, states_attitude, 0)
+save_csv('ps3_data/mrp_satellite.csv', states_time, states_omega, states_attitude, 1)
+
+# Plot the angular velocities and the attitudes
+
 import matplotlib.pyplot as plt
 
 plt.close("all")
