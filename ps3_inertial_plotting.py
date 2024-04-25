@@ -64,9 +64,9 @@ if True:
 # We will plot the xyz triad as RGB lines using the DCM rotation matrix in 3D.
 # Only plot one satellite at a time
 
-num_skip = 200
+num_skip = 20 #200
 len_tot = min(len(mrp_satellite_df), len(qtr_satellite_df))
-max_i = min(len_tot, np.inf)
+max_i = min(len_tot, 800)# np.inf)
 num_times_plotted = max_i // num_skip + 1
 alpha_linear_scaled = np.linspace(0, 1, num_times_plotted, endpoint=True)
 print(f"Length of alpha scaling is {len(alpha_linear_scaled)}")
@@ -220,9 +220,9 @@ if True:
         #              cmap="gray",
         #              alpha=alpha_linear_scaled)
 
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
+        ax.set_xlabel("wx")
+        ax.set_ylabel("wy")
+        ax.set_zlabel("wz")
         
         ax.axis("equal")
         
@@ -286,9 +286,9 @@ if True:
         for (lxi, lyi, lzi), alpha in zip(sat_ang_mom, alpha_linear_scaled):
             ax.scatter3D(lxi, lyi, lzi, color="k", alpha=alpha)
 
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
+        ax.set_xlabel("Lx")
+        ax.set_ylabel("Ly")
+        ax.set_zlabel("Lz")
         
         ax.axis("equal")
         
