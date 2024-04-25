@@ -64,21 +64,96 @@ if False:
 # We will plot the xyz triad as RGB lines using the DCM rotation matrix in 3D.
 # Only plot one satellite at a time
 
-num_skip = 5
-max_i = 2600
+num_skip = 2
+len_tot = min(len(mrp_satellite_df), len(qtr_satellite_df))
+max_i = min(len_tot, np.inf)
 num_times_plotted = max_i // num_skip
 alpha_linear_scaled = np.linspace(0, 1, num_times_plotted, endpoint=True)
 print(f"Length of alpha scaling is {len(alpha_linear_scaled)}")
-
 # Viewpoint in 3D for the plot
 viewpoint = {"elev": 20, "azim": -10}
 
+if False:
+
+    for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
+        fig = plt.figure()
+        ax = plt.axes(projection='3d')
+
+        # Set the viewpoint
+        ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
+
+        # Make an attitude class to convert the MRP or QTR to a DCM
+        if sat_name == "MRP":
+            sat_att = att.MRP()
+        else:
+            sat_att = att.QTR()
+        
+        for i, row in sat_df.iterrows():
+
+            if i % num_skip != 0:
+                continue
+
+            if i >= max_i:
+                break
+
+            # Convert the MRP or QTR to a DCM
+            if sat_name == "MRP":
+                dcm = sat_att._mrp2dcm([row["a0"], row["a1"], row["a2"]])
+            else:
+                dcm = sat_att._qtr2dcm([row["a0"], row["a1"], row["a2"], row["a3"]])
+
+            x, y, z = dcm
+
+            # Check that each is a unit vector
+            assert np.isclose(np.linalg.norm(x), 1.0)
+            assert np.isclose(np.linalg.norm(y), 1.0)
+            assert np.isclose(np.linalg.norm(z), 1.0)
+
+            # print(f"accessing index {i // num_skip} with i = {i}")
+            alpha = alpha_linear_scaled[i // num_skip]
+            ax.plot3D([0, x[0]], [0, x[1]], [0, x[2]], "r", alpha=alpha)
+            ax.plot3D([0, y[0]], [0, y[1]], [0, y[2]], "g", alpha=alpha)
+            ax.plot3D([0, z[0]], [0, z[1]], [0, z[2]], "b", alpha=alpha)
+        
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
+        
+        ax.axis("equal")
+        
+        # Use more human names for the title
+        if sat_name == "MRP":
+            title_name = "Modified Rodrigues Parameters"
+        else:
+            title_name = "Quaternions"
+
+        plt.title(title_name)
+        plt.show()
+
+        # Save the figure
+        fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}.png")
+
+
+
+# Convert the angular velocities to the body frame, and plot them
+# This is the herpolhode plot
+
+# First, calculate the angular velocities in the inertial frame
+omega_inertial_history_per_sat = []
+
+
+# Then we will plot the angular velocities in the inertial frame
+
+# Do this per satellite
 for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
     fig = plt.figure()
     ax = plt.axes(projection='3d')
 
     # Set the viewpoint
     ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
+
+    # Make list to store the history of the angular velocities
+    omega_inertial_history = []
 
     # Make an attitude class to convert the MRP or QTR to a DCM
     if sat_name == "MRP":
@@ -100,13 +175,23 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
         else:
             dcm = sat_att._qtr2dcm([row["a0"], row["a1"], row["a2"], row["a3"]])
 
-        x, y, z = dcm
+        # Rotate the angular velocity to the body frame
+        omega_body = np.array([row["wx"], row["wy"], row["wz"]])
+        omega_inertial = np.dot(dcm.T, omega_body)
+        # omega_inertial = np.dot(dcm, omega_body)
+
+        omega_inertial_history.append(omega_inertial)
+
         # print(f"accessing index {i // num_skip} with i = {i}")
         alpha = alpha_linear_scaled[i // num_skip]
-        ax.plot3D([0, x[0]], [0, x[1]], [0, x[2]], "r", alpha=alpha)
-        ax.plot3D([0, y[0]], [0, y[1]], [0, y[2]], "g", alpha=alpha)
-        ax.plot3D([0, z[0]], [0, z[1]], [0, z[2]], "b", alpha=alpha)
+
+        # Just plot the tip of the angular velocity vector
+        ax.scatter3D(omega_inertial[0], omega_inertial[1], omega_inertial[2], color="k", alpha=alpha)   
+        # ax.plot3D([0, omega_inertial[0]], [0, omega_inertial[1]], [0, omega_inertial[2]], "k", alpha=alpha)
     
+    # Store the history of the angular velocities
+    omega_inertial_history_per_sat.append(omega_inertial_history)
+
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
@@ -123,16 +208,11 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
     plt.show()
 
     # Save the figure
-    fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}.png")
-
-
-
-# Convert the angular velocities to the body frame, and plot them
-# This is the herpolhode plot
-
+    fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}.png")
 
 
 # Calculate the angular momentum in the body frame, and plot it
 # It should be constant, and equal to the initial angular momentum
 
+# Do this per satellite
 
