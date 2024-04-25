@@ -64,14 +64,15 @@ if True:
 # We will plot the xyz triad as RGB lines using the DCM rotation matrix in 3D.
 # Only plot one satellite at a time
 
-num_skip = 2000
+num_skip = 200
 len_tot = min(len(mrp_satellite_df), len(qtr_satellite_df))
 max_i = min(len_tot, np.inf)
 num_times_plotted = max_i // num_skip + 1
 alpha_linear_scaled = np.linspace(0, 1, num_times_plotted, endpoint=True)
 print(f"Length of alpha scaling is {len(alpha_linear_scaled)}")
 # Viewpoint in 3D for the plot
-viewpoint = {"elev": 20, "azim": -10}
+# viewpoint = {"elev": 20, "azim": -10}
+viewpoint = {"elev": 22, "azim": -59}
 
 if True:
 
@@ -123,15 +124,16 @@ if True:
         
         # Use more human names for the title
         if sat_name == "MRP":
-            title_name = "Modified Rodrigues Parameters"
+            title_name = "3D Satellite Pose from Modified Rodrigues Parameters"
         else:
-            title_name = "Quaternions"
+            title_name = "3D Satellite Pose from Quaternions"
 
         plt.title(title_name)
         plt.show()
 
         # Save the figure
-        fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}.png")
+        el, az = viewpoint["elev"], viewpoint["azim"]
+        fig.savefig(f"ps3_data/{sat_name}_attitude_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
 
 
 
@@ -234,7 +236,7 @@ if True:
         plt.show()
 
         # Save the figure
-        fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}.png")
+        fig.savefig(f"ps3_data/{sat_name}_angular_velocity_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
 
 
 # Calculate the angular momentum in the body frame, and plot it
@@ -300,7 +302,7 @@ if True:
         plt.show()
 
         # Save the figure
-        fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}.png")
+        fig.savefig(f"ps3_data/{sat_name}_angular_momentum_body_inertial_max{max_i}_skip{num_skip}_el{el}_az{az}.png")
 
 
 # Check the norm of the angular momentum, it should be constant
