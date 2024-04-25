@@ -141,16 +141,7 @@ if False:
 # First, calculate the angular velocities in the inertial frame
 omega_inertial_history_per_sat = []
 
-
-# Then we will plot the angular velocities in the inertial frame
-
-# Do this per satellite
 for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]):
-    fig = plt.figure()
-    ax = plt.axes(projection='3d')
-
-    # Set the viewpoint
-    ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
 
     # Make list to store the history of the angular velocities
     omega_inertial_history = []
@@ -181,16 +172,36 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
         # omega_inertial = np.dot(dcm, omega_body)
 
         omega_inertial_history.append(omega_inertial)
-
-        # print(f"accessing index {i // num_skip} with i = {i}")
-        alpha = alpha_linear_scaled[i // num_skip]
-
-        # Just plot the tip of the angular velocity vector
-        ax.scatter3D(omega_inertial[0], omega_inertial[1], omega_inertial[2], color="k", alpha=alpha)   
-        # ax.plot3D([0, omega_inertial[0]], [0, omega_inertial[1]], [0, omega_inertial[2]], "k", alpha=alpha)
     
     # Store the history of the angular velocities
     omega_inertial_history_per_sat.append(omega_inertial_history)
+
+
+# Then we will plot the angular velocities in the inertial frame
+
+# Do this per satellite
+for sat_name, sat_ang_vel in zip(["MRP", "QTR"], omega_inertial_history_per_sat):
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+
+    # Set the viewpoint
+    ax.view_init(elev=viewpoint["elev"], azim=viewpoint["azim"])
+
+    # Stack the history of the angular velocities as np array (time, 3)
+    omega_inertial_history = np.array(sat_ang_vel)
+    assert omega_inertial_history.shape[1] == 3
+
+    # Just plot the tip of the angular velocity vector
+    # Plot by alpha which requires plotting each point separately
+    for (wxi, wyi, wzi), alpha in zip(sat_ang_vel, alpha_linear_scaled):
+        ax.scatter3D(wxi, wyi, wzi, color="k", alpha=alpha)
+
+    # ax.scatter3D(omega_inertial_history[:, 0], 
+    #              omega_inertial_history[:, 1], 
+    #              omega_inertial_history[:, 2], 
+    #              c=alpha_linear_scaled,
+    #              cmap="gray",
+    #              alpha=alpha_linear_scaled)
 
     ax.set_xlabel("x")
     ax.set_ylabel("y")
@@ -200,9 +211,9 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
     
     # Use more human names for the title
     if sat_name == "MRP":
-        title_name = "Modified Rodrigues Parameters"
+        title_name = "Herpolhode when using the Modified Rodrigues Parameters"
     else:
-        title_name = "Quaternions"
+        title_name = "Herpolhode when using the Quaternions"
 
     plt.title(title_name)
     plt.show()
