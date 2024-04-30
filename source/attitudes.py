@@ -192,7 +192,7 @@ class QTR:
         dcm[2,0] = 2 * (b1 * b3 + b0 * b2)
         dcm[2,1] = 2 * (b2 * b3 - b0 * b1)
         
-        self.dcm = dcm
+        self.dcm = dcm.T
         return self.dcm
     
     # Method for ensuring the correct normalisation of a quaternion.
@@ -362,7 +362,7 @@ class CRP:
         dcm[2,1] = 2 * (crp[2] * crp[1] - crp[0])
         
         # Return the scaled DCM.
-        self.dcm = ( 1.0 / ( 1.0 + np.dot(crp,crp) ) ) * dcm
+        self.dcm = ( 1.0 / ( 1.0 + np.dot(crp,crp) ) ) * dcm.T
         return self.dcm
         
     # Method for computing the differential equation in CRP vector form given
@@ -544,7 +544,7 @@ class MRP:
         dcm = 8 * (mt @ mt) - 4 * ( 1 - np.dot(mrp,mrp) ) * mt
         dcm = dcm / ((1 + np.dot(mrp,mrp))**2)
         dcm = dcm + np.eye(3)
-        self.dcm = dcm
+        self.dcm = dcm.T
         return self.dcm
     
     # Method for switching current MRP to its shadow set

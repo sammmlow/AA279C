@@ -178,7 +178,7 @@ for sat_name, sat_df in zip(["MRP", "QTR"], [mrp_satellite_df, qtr_satellite_df]
 
         # Rotate the angular velocity to the body frame
         omega_body = np.array([row["wx"], row["wy"], row["wz"]])
-        omega_inertial = dcm.T @ omega_body
+        omega_inertial = dcm @ omega_body
         # omega_inertial = np.dot(dcm, omega_body)
 
         # Store the angular velocity in the inertial frame
@@ -258,8 +258,8 @@ for sat_name, sat_ang_vel, sat_dcm in zip(["MRP", "QTR"],
         # Calculate the angular momentum in the inertial frame
         # L = I @ omega
         # Which means we need I in the inertial frame
-        inertia_inertial_frame = dcm_curr.T @ initial_inertia @ dcm_curr
-        # inertia_inertial_frame = dcm_curr @ initial_inertia @ dcm_curr.T
+        # inertia_inertial_frame = dcm_curr.T @ initial_inertia @ dcm_curr
+        inertia_inertial_frame = dcm_curr @ initial_inertia @ dcm_curr.T
 
         angular_momentum_inertial = inertia_inertial_frame @ omega_inertial_curr
         angular_momentum_history.append(angular_momentum_inertial)
