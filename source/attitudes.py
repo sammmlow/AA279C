@@ -229,6 +229,14 @@ class QTR:
         axis = np.array([ self.qtr[1], self.qtr[2], self.qtr[3] ])
         axis = axis / np.linalg.norm(axis)
         return axis
+    
+    # Method for obtaining 3-2-1 Tait Bryan angles.
+    def get_euler_angles_321(self):
+        dcm = self._qtr2dcm( self.qtr )
+        yaw = np.arctan2(dcm[0,1], dcm[0,0])
+        pitch = -np.arcsin(dcm[0,2])
+        roll = np.arctan2(dcm[1,2], dcm[2,2])
+        return np.array([ yaw, pitch, roll ])
 
 
 ###############################################################################
@@ -400,6 +408,14 @@ class CRP:
         axis = np.array([ self.crp[0], self.crp[1], self.crp[2] ])
         axis = axis / np.linalg.norm(axis)
         return axis
+    
+    # Method for obtaining 3-2-1 Tait Bryan angles.
+    def get_euler_angles_321(self):
+        dcm = self._crp2dcm( self.mrp )
+        yaw = np.arctan2(dcm[0,1], dcm[0,0])
+        pitch = -np.arcsin(dcm[0,2])
+        roll = np.arctan2(dcm[1,2], dcm[2,2])
+        return np.array([ yaw, pitch, roll ])
 
 
 ###############################################################################
@@ -580,3 +596,11 @@ class MRP:
         axis = np.array([ self.mrp[0], self.mrp[1], self.mrp[2] ])
         axis = axis / np.linalg.norm(axis)
         return axis
+    
+    # Method for obtaining 3-2-1 Tait Bryan angles.
+    def get_euler_angles_321(self):
+        dcm = self._mrp2dcm( self.mrp )
+        yaw = np.arctan2(dcm[0,1], dcm[0,0])
+        pitch = -np.arcsin(dcm[0,2])
+        roll = np.arctan2(dcm[1,2], dcm[2,2])
+        return np.array([ yaw, pitch, roll ])
