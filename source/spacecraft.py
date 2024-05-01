@@ -772,7 +772,7 @@ class Spacecraft():
                 self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
             qDotBN = self.attBN.get_qtrRate( self.ohmBN )
             self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-            self.attBN.normalise();
+            self.attBN.normalise()
             # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
         
         # Check if the coordinate type is an MRP
@@ -782,7 +782,52 @@ class Spacecraft():
             
             # Switching to shadow set
             if np.linalg.norm(self.attBN.mrp) > 1.0:
-                self.attBN.set_mrp_shadow();
+                self.attBN.set_mrp_shadow()
+        else:
+            print('Current attitude representation:', self.attBN.strID())
+            raise TypeError('Current attitude coordinate not supported!')
+    
+    # Propagate the attitude of a dual-spin vehicle that has access to both
+    # a torque, and a secondary momentum wheel. User should specify the
+    # current spin-rate (ohmR) of the wheel as a scalar, and a vector (vecR)
+    # representing the unit direction of the principal axis of the wheel about
+    # which is it spinning, but expressed in principal body frame coordinates.
+    # Note that the spacecraft object current does not store internally the
+    # values of ohmR and vecR, so the user should store that information
+    # externally and feed that to the propagator at each timestep.
+    def propagate_attitude_with_a_wheel(
+            self, dt, torque, IR, ohmR, ohmRDot, vecR):
+        
+        # Get the angular acceleration from Euler's EOM + flywheel
+        Ix, Iy, Iz = np.diag( self.inertia )
+        Mx, My, Mz = torque
+        Rx, Ry, Rz = vecR
+        IwR = IR * ohmR
+        IwRD = IR * ohmRDot
+        wx, wy, wz = self.ohmBN
+        wxDot = (Mx - ((IwRD*Rx) + (Iz-Iy)*wy*wz + IwR*(wy*Rz-wz*Ry))) / Ix
+        wyDot = (My - ((IwRD*Ry) + (Ix-Iz)*wx*wz + IwR*(wz*Rx-wx*Rz))) / Iy
+        wzDot = (Mz - ((IwRD*Rz) + (Iy-Ix)*wx*wy + IwR*(wx*Ry-wy*Rx))) / Iz
+        wDotBN = np.array([wxDot, wyDot, wzDot])
+        self.ohmBN = self.ohmBN + ( dt * wDotBN )
+        
+        # Check if the coordinate type is a quaternion.
+        if self.attBN.strID() == 'QTR' and self.attBR.strID() == 'QTR':
+            if self.attBN[0] < 0.0:
+                self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
+            qDotBN = self.attBN.get_qtrRate( self.ohmBN )
+            self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
+            self.attBN.normalise()
+            # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
+        
+        # Check if the coordinate type is an MRP
+        elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
+            mDotBN = self.attBN.get_mrpRate( self.ohmBN )
+            self.attBN.mrp = self.attBN.mrp + ( dt * mDotBN )
+            
+            # Switching to shadow set
+            if np.linalg.norm(self.attBN.mrp) > 1.0:
+                self.attBN.set_mrp_shadow()
         else:
             print('Current attitude representation:', self.attBN.strID())
             raise TypeError('Current attitude coordinate not supported!')
