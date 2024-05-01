@@ -103,6 +103,7 @@ initial_attitude = QTR(
 # Set the initial omegas, attitudes, and inertias.
 sc.ohmBN = initial_omega
 sc.attBN = initial_attitude
+sc.inertia = initial_inertia
 
 # Initialize simulation time parameters.
 now, n, duration, timestep = 0.0, 0, 86400, 60.0
