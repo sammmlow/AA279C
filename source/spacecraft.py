@@ -759,33 +759,7 @@ class Spacecraft():
     # Propagate the attitude of the vehicle given a reference and torque.
     # Note that torques and angular velocities must be in the body frame.
     def propagate_attitude(self, dt, torque):
-        
-        # Get the angular acceleration from Euler's EOM.
-        inertia_inverse = np.linalg.inv( self.inertia )
-        gyroscopic = np.cross( self.ohmBN, self.inertia @ self.ohmBN )
-        wDotBN = inertia_inverse @ ( torque - gyroscopic )
-        self.ohmBN = self.ohmBN + ( dt * wDotBN )
-        
-        # Check if the coordinate type is a quaternion.
-        if self.attBN.strID() == 'QTR' and self.attBR.strID() == 'QTR':
-            if self.attBN[0] < 0.0:
-                self.attBN.qtr = -1 * self.attBN.qtr # Fix long/short rotation
-            qDotBN = self.attBN.get_qtrRate( self.ohmBN )
-            self.attBN.qtr = self.attBN.qtr + ( dt * qDotBN )
-            self.attBN.normalise()
-            # self.attIntgErr = self.attIntgErr + ( self.attBR.qtr[1:] * dt )
-        
-        # Check if the coordinate type is an MRP
-        elif self.attBN.strID() == 'MRP' and self.attBR.strID() == 'MRP':
-            mDotBN = self.attBN.get_mrpRate( self.ohmBN )
-            self.attBN.mrp = self.attBN.mrp + ( dt * mDotBN )
-            
-            # Switching to shadow set
-            if np.linalg.norm(self.attBN.mrp) > 1.0:
-                self.attBN.set_mrp_shadow()
-        else:
-            print('Current attitude representation:', self.attBN.strID())
-            raise TypeError('Current attitude coordinate not supported!')
+        integrate.integrate_attitude(self, dt, torque)
     
     # Propagate the attitude of a dual-spin vehicle that has access to both
     # a torque, and a secondary momentum wheel. User should specify the
@@ -842,19 +816,18 @@ class Spacecraft():
             self.update_relative_motion()
         
     # Numerical propagator using RK4.
-    def propagate_perturbed(self, t, step, integrator='RK4'):
+    def propagate_perturbed(self, t, step):
         time_left = t
-        if integrator == 'RK4':
-            while time_left > step:
-                integrate.RK4(self, step)
-                self.epoch += datetime.timedelta( seconds = step )
-                time_left -= step
-            integrate.RK4(self, time_left)
-            self.epoch += datetime.timedelta( seconds = time_left )
-            
-            # Update relative states if being tagged to a chief.
-            if self.chief != None:
-                self.update_relative_motion()
+        while time_left > step:
+            integrate.integrate_orbit(self, step)
+            self.epoch += datetime.timedelta( seconds = step )
+            time_left -= step
+        integrate.integrate_orbit(self, time_left)
+        self.epoch += datetime.timedelta( seconds = time_left )
+        
+        # Update relative states if being tagged to a chief.
+        if self.chief != None:
+            self.update_relative_motion()
     
     # TODO
     def plot_orbit(self):
