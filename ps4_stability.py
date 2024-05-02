@@ -85,7 +85,7 @@ for axis in [0, 1, 2]:
             ax.set_xlabel('Time [seconds]')
 
     # Save the figure.
-    fig1.savefig(filename_prefix + axis_names[axis] + 'Angle.png', dpi=300)
+    fig1.savefig(filename_prefix + axis_names[axis] + '-Angle.png', dpi=300)
 
     # Plot angular velocities.
     fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
@@ -98,4 +98,4 @@ for axis in [0, 1, 2]:
             ax.set_xlabel('Time [seconds]')
 
     # Save the figure.
-    fig2.savefig(filename_prefix + axis_names[axis] + 'Omega.png', dpi=300)
+    fig2.savefig(filename_prefix + axis_names[axis] + '-Omega.png', dpi=300)
