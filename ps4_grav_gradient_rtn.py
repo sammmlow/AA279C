@@ -16,6 +16,13 @@ from source.spacecraft import Spacecraft
 from source.attitudes import QTR, MRP
 from source.rotation import dcmX, dcmZ
 
+# ===========================================================================
+
+# For saving the figures
+file_path = "figures/ps4/PS4-GravityGradient-Random-Plot-LongDuration-"
+
+# ===========================================================================
+
 # Compute gravity gradient torque. Rc in the principal body frame.
 def compute_gravity_gradient_torque(GM, Rc, inertia):
     RcNorm = norm(Rc)
@@ -96,7 +103,7 @@ initial_inertia = np.diag( [4770.398, 6313.894, 7413.202] );
 # initial_attitude = QTR( dcm = sc.get_hill_frame().T );
 
 #Uncomment for the arbitrary random alignment
-initial_omega = [0, 0, 0];
+initial_omega = [0, 0, 0]
 arbitrary_yaw = dcmX( np.deg2rad(45.0) )
 arbitrary_roll = dcmZ( np.deg2rad(45.0) )
 initial_attitude = QTR( 
@@ -108,11 +115,19 @@ sc.attBN = initial_attitude
 sc.inertia = initial_inertia
 
 # Initialize simulation time parameters.
-now, n, duration, timestep = 0.0, 0, 86400, 30.0
+# Orbit period is 24 hours, or 60 s/m * 60 m/hr * 24hr/day.
+one_orbital_period = 60 * 60 * 24
+n_periods = 4
+duration = n_periods * one_orbital_period
+
+now, n, timestep = 0.0, 0, 30.0
 samples = int(duration / timestep)
+print("Number of samples: ", samples)
 timeAxis = np.linspace(0, duration, samples)
-sample_bigstep = 8
+# sample_bigstep = 8
+sample_bigstep = 36
 sample_trigger = duration / sample_bigstep # Fragile code. 
+print(f"with sample trigger of {sample_trigger} number of samples: ", samples // sample_bigstep)
 
 # Initialize containers for plotting.
 x = np.zeros(samples)
@@ -130,14 +145,16 @@ nBig = 0
 
 # Make this number bigger to plot faster with fewer points.
 sampleSkip = 5
+# sampleSkip = 40
+print(f"with skip of {sampleSkip}, number of samples: ", samples // sampleSkip)
 
 # Propagate attitude and orbit
 while now < duration:
     
     # Store the angular velocities and 321 Euler angles
-    x[n] = sc.states[0];
-    y[n] = sc.states[1];
-    z[n] = sc.states[2];
+    x[n] = sc.states[0]
+    y[n] = sc.states[1]
+    z[n] = sc.states[2]
     states_omega[:, n] = sc.ohmBN
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
     states_quatr[:, n] = sc.attBN.qtr
@@ -173,10 +190,18 @@ plt.plot( timeAxis[::sampleSkip], states_quatr[3,::sampleSkip] )
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Body-to-Inertial Quaternions')
 plt.legend(['q0','q1','q2','q3'])
-plt.grid()
-plt.show()
 
-# Plot quaternions.
+# Plot the orbital periods as vertical lines.
+for i in range(n_periods + 1):
+    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
+
+plt.grid()
+# plt.show()
+
+# Save the quaternion plot
+plt.savefig(file_path + 'QTR.png', dpi=200, bbox_inches='tight')
+
+# Plot gravity gradients.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_gtorq[0,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_gtorq[1,::sampleSkip] )
@@ -184,9 +209,19 @@ plt.plot( timeAxis[::sampleSkip], states_gtorq[2,::sampleSkip] )
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Gravity Gradient Torque in Principal-Body Axis [N m]')
 plt.legend(['$M_x$','$M_y$','$M_z$'])
+
+# Plot the orbital periods as vertical lines.
+for i in range(n_periods + 1):
+    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
+
 plt.grid()
-plt.show()
+# plt.show()
+
+# Save the gravity gradient plot
+plt.savefig(file_path + 'Torque.png', dpi=200, bbox_inches='tight')
     
+print("Plotting Euler")
+
 # Plot Euler angles.
 fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
 labels = ['Roll \u03C6', 'Pitch \u03B8', 'Yaw \u03C8']  # psi, theta, phi
@@ -200,6 +235,15 @@ for i, ax in enumerate(axes1):
     if i == 2:
         ax.set_xlabel('Time [seconds]')
     
+    # Plot the orbital periods as vertical lines.
+    for i in range(n_periods + 1):
+        ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
+
+# Save the Euler angle plot
+plt.savefig(file_path + 'Angles.png', dpi=200, bbox_inches='tight')
+
+print("Plotting angular velocities")
+
 # Plot angular velocities.
 fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
 labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
@@ -210,6 +254,14 @@ for i, ax in enumerate(axes2):
     if i == 2:
         ax.set_xlabel('Time [seconds]')
         
+    # Plot the orbital periods as vertical lines.
+    for i in range(n_periods + 1):
+        ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
+
+# Save the angular velocity plot
+plt.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
+        
+print("Plotting RTN")
 # Plot visualization of RTN orbit
 fig3 = plt.figure(figsize=(10, 10))
 axes3 = fig3.add_subplot(111, projection='3d')
@@ -219,3 +271,8 @@ plot_orbit_and_attitude(axes3,
                         z[::sampleSkip], 
                         xyz_sampled, 
                         dcm_sampled)
+
+plt.tight_layout()
+
+# Save the RTN plot
+plt.savefig(file_path + 'Orbit.png', dpi=200, bbox_inches='tight')
