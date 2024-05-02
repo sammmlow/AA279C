@@ -15,8 +15,13 @@ from numpy.linalg import norm
 
 plt.close("all")
 
+use_wheel = False
+
 # For saving the figures
-file_path = "figures/ps4/PS4-DualSpin-ArmAxis-NoWheel-"
+if use_wheel:
+    file_path = "figures/ps4/PS4-DualSpin-ArmAxis-WithWheel-"
+else:
+    file_path = "figures/ps4/PS4-DualSpin-ArmAxis-NoWheel-"
 
 
 # Initial parameters.
@@ -30,29 +35,35 @@ initial_omegas = omega_magnitude * np.deg2rad( np.ones(3) )
 # The principal inertia tensor of The Nimble Ladybug is...
 initial_inertia = np.diag( [4770.398, 6313.894, 7413.202] )
 
-# Initialize the wheel moment of inertia.
-wheel_density = 4430 # Ti-6Al-4V [kg/m^3]
-wheel_mass = wheel_density * np.pi * 0.4 * 0.4 * 0.1
-wheel_inertia = 0.5 * wheel_mass * 0.4 * 0.4
-wheel_omega = 300 * 2 * np.pi / 60.0
+if use_wheel:
+    # Initialize the wheel moment of inertia.
+    wheel_density = 4430 # Ti-6Al-4V [kg/m^3]
+    wheel_mass = wheel_density * np.pi * 0.4 * 0.4 * 0.1
+    wheel_inertia = 0.5 * wheel_mass * 0.4 * 0.4
+    wheel_omega = 2 * 300 * 2 * np.pi / 60.0
 
-# Constant. Not going to change.
-wheel_momentum_magnitude = wheel_inertia * wheel_omega
-wheel_axis = np.array([-np.cos(np.deg2rad(30)), 
-               np.sin(np.deg2rad(30)) * np.cos(np.deg2rad(45)), 
-               np.sin(np.deg2rad(30)) * np.sin(np.deg2rad(45))])
-wheel_momentum = wheel_momentum_magnitude * wheel_axis
-    
-assert np.isclose(np.linalg.norm(wheel_momentum), wheel_momentum_magnitude)
+    # Constant. Not going to change.
+    wheel_momentum_magnitude = wheel_inertia * wheel_omega
+    wheel_axis = np.array([-np.cos(np.deg2rad(30)), 
+                np.sin(np.deg2rad(30)) * np.cos(np.deg2rad(45)), 
+                np.sin(np.deg2rad(30)) * np.sin(np.deg2rad(45))])
+    wheel_momentum = wheel_momentum_magnitude * wheel_axis
+        
+    assert np.isclose(np.linalg.norm(wheel_momentum), wheel_momentum_magnitude)
 
-wheel_energy = 0.5 * wheel_momentum_magnitude * wheel_omega
+    wheel_energy = 0.5 * wheel_momentum_magnitude * wheel_omega
 
 # The initial attitude is a quaternion aligned to inertial.
 initial_attitude = QTR( dcm = np.identity(3) )
 
 # Initialize simulation time parameters.
-duration, timestep = 3600, 0.005 #0.01
-samples = int(duration / timestep) #+ 1
+duration = 3600
+if use_wheel:
+    timestep = 0.005
+else:
+    timestep = 0.1
+# , timestep = 3600, 0.005 #0.1 #0.005 #0.01
+samples = int(duration / timestep) + 1
 timeAxis = np.linspace(0, duration, samples)
 
 # Three test cases: for each spacecraft, the initial angular
@@ -89,37 +100,38 @@ while now <= duration:
     states_omega[n,:] = np.array([sc.ohmBN[0], sc.ohmBN[1], sc.ohmBN[2]])
     states_angle[n,:] = sc.attBN.get_euler_angles_321()
     
-    # WHEEL CASE
-
-    # Compute the total momentum and energy, make sure it is conserved.
-    # It must be emphasised that component-wise angular momentum is
-    # conserved in the inertial frame. Need to multiply it by the DCM!
-    Iw = sc.inertia @ sc.ohmBN
-    states_momentum[n,:] = sc.attBN.dcm @ (Iw + wheel_momentum)
-    states_energy[n] = 0.5 * np.dot(sc.ohmBN, Iw) + wheel_energy
+    if use_wheel:
+        # WHEEL CASE
+        # Compute the total momentum and energy, make sure it is conserved.
+        # It must be emphasised that component-wise angular momentum is
+        # conserved in the inertial frame. Need to multiply it by the DCM!
+        Iw = sc.inertia @ sc.ohmBN
+        states_momentum[n,:] = sc.attBN.dcm @ (Iw + wheel_momentum)
+        states_energy[n] = 0.5 * np.dot(sc.ohmBN, Iw) + wheel_energy
+        
+        # Propagate the attitude and the angular velocity. Propagate attitude 
+        # with a wheel takes as arguments: dt, torque, IR, ohmR, ohmRDot, vecR
+        sc.propagate_orbit(timestep)
+        sc.propagate_attitude_with_a_wheel(
+            timestep, [0,0,0], wheel_inertia, wheel_omega, 0.0, wheel_axis)
     
-    # Propagate the attitude and the angular velocity. Propagate attitude 
-    # with a wheel takes as arguments: dt, torque, IR, ohmR, ohmRDot, vecR
-    sc.propagate_orbit(timestep)
-    sc.propagate_attitude_with_a_wheel(
-        timestep, [0,0,0], wheel_inertia, wheel_omega, 0.0, wheel_axis)
-    
 
-    # NO WHEEL CASE
-    # Iw = sc.inertia @ sc.ohmBN
-    # states_momentum[n,:] = sc.attBN.dcm @ (Iw + wheel_momentum)
-    # states_energy[n] = 0.5 * np.dot(sc.ohmBN, Iw) + wheel_energy
+    else:
+        # NO WHEEL CASE
+        Iw = sc.inertia @ sc.ohmBN
+        states_momentum[n,:] = sc.attBN.dcm @ Iw
+        states_energy[n] = 0.5 * np.dot(sc.ohmBN, Iw)
 
-    # # Propagate the attitude and the angular velocity. Propagate attitude 
-    # # with a wheel takes as arguments: dt, torque, IR, ohmR, ohmRDot, vecR
-    # sc.propagate_orbit(timestep)
-    # sc.propagate_attitude(timestep, [0,0,0])
+        # Propagate the attitude and the angular velocity. Propagate attitude 
+        # with a wheel takes as arguments: dt, torque, IR, ohmR, ohmRDot, vecR
+        sc.propagate_orbit(timestep)
+        sc.propagate_attitude(timestep, [0,0,0])
 
     now += timestep
     n += 1
 
 print(f"Final n is {n} and final time is {now} seconds.")
-print(f"Expected snampes is {samples}. Expected time is {duration} seconds.")
+print(f"Expected samples is {samples}. Expected time is {duration} seconds.")
 
 # Plot Euler angles.
 fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
