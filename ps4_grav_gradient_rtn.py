@@ -18,13 +18,14 @@ from source.rotation import dcmX, dcmZ
 
 # Compute gravity gradient torque. Rc in the principal body frame.
 def compute_gravity_gradient_torque(GM, Rc, inertia):
-    k = 3 * GM / norm(Rc)**5
-    Rcx, Rcy, Rcz = Rc
+    RcNorm = norm(Rc)
+    k = 3 * GM / (RcNorm**3) # Note that km units cancel out here.
+    Rcx, Rcy, Rcz = Rc / RcNorm
     Ix, Iy, Iz = np.diag(inertia)
-    Mx = Rcy * Rcz * (Iz - Iy)
-    My = Rcx * Rcz * (Ix - Iz)
-    Mz = Rcx * Rcy * (Iy - Ix)
-    return k * np.array([Mx, My, Mz])
+    Mx = Rcy * Rcz * (Iz - Iy) * k
+    My = Rcx * Rcz * (Ix - Iz) * k
+    Mz = Rcx * Rcy * (Iy - Ix) * k
+    return np.array([Mx, My, Mz])
 
 # Define a function here that plots a satellite in orbit, with current
 # attitude expressed as columns of its DCM (for visualization). 
@@ -106,8 +107,8 @@ sc.attBN = initial_attitude
 sc.inertia = initial_inertia
 
 # Initialize simulation time parameters.
-now, n, duration, timestep = 0.0, 0, 86400, 60.0
-samples = int(duration / timestep)
+now, n, duration, timestep = 0.0, 0, 86400, 30.0
+samples = int(duration / timestep) + 1
 timeAxis = np.linspace(0, duration, samples)
 sample_bigstep = 8
 sample_trigger = duration / sample_bigstep # Fragile code. 
@@ -124,6 +125,8 @@ states_quatr = np.zeros(( 4, samples ))
 states_gtorq = np.zeros(( 3, samples ))
 
 nBig = 0
+
+sampleSkip = 5
 
 # Propagate attitude and orbit
 while now < duration:
@@ -144,7 +147,7 @@ while now < duration:
         
     # Compute gravity gradient torque
     Rc_inertial = np.array([x[n], y[n], z[n]])
-    Rc = sc.get_hill_frame() @ Rc_inertial
+    Rc = sc.attBN.dcm.T @ Rc_inertial
     gTorque = compute_gravity_gradient_torque(sc.GM, Rc, sc.inertia)
     
     # Store the computed gravity gradient torque
@@ -153,16 +156,17 @@ while now < duration:
     # Propagate the attitude and the angular velocity
     sc.propagate_orbit(timestep)
     sc.propagate_attitude(timestep, torque = gTorque)
+    # sc.propagate_attitude(timestep, torque = [0,0,0])
     
     now += timestep
     n += 1
     
 # Plot quaternions.
 plt.figure()
-plt.plot( timeAxis, states_quatr[0,:] )
-plt.plot( timeAxis, states_quatr[1,:] )
-plt.plot( timeAxis, states_quatr[2,:] )
-plt.plot( timeAxis, states_quatr[3,:] )
+plt.plot( timeAxis[::sampleSkip], states_quatr[0,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_quatr[1,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_quatr[2,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_quatr[3,::sampleSkip] )
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Body-to-Inertial Quaternions')
 plt.legend(['q0','q1','q2','q3'])
@@ -171,9 +175,9 @@ plt.show()
 
 # Plot quaternions.
 plt.figure()
-plt.plot( timeAxis, states_gtorq[0,:] )
-plt.plot( timeAxis, states_gtorq[1,:] )
-plt.plot( timeAxis, states_gtorq[2,:] )
+plt.plot( timeAxis[::sampleSkip], states_gtorq[0,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_gtorq[1,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_gtorq[2,::sampleSkip] )
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Gravity Gradient Torque in Principal-Body Axis [N m]')
 plt.legend(['$M_x$','$M_y$','$M_z$'])
@@ -184,7 +188,7 @@ plt.show()
 fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
 labels = ['Roll \u03C6', 'Pitch \u03B8', 'Yaw \u03C8']  # psi, theta, phi
 for i, ax in enumerate(axes1):
-    ax.plot( timeAxis, states_angle[i,:] * 57.3 )
+    ax.plot( timeAxis[::sampleSkip], states_angle[i,::sampleSkip] * 57.3 )
     ax.set_ylabel(labels[i] + ' [deg]')
     ax.set_ylim(-200, 200)
     ax.axhline(-180, color='gray', linestyle='--')
@@ -197,7 +201,7 @@ for i, ax in enumerate(axes1):
 fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
 labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
 for i, ax in enumerate(axes2):
-    ax.plot( timeAxis, states_omega[i,:] )
+    ax.plot( timeAxis[::sampleSkip], states_omega[i,::sampleSkip] )
     ax.set_ylabel(labels[i] + ' [rad/s]')
     ax.grid(True)
     if i == 2:
@@ -206,4 +210,9 @@ for i, ax in enumerate(axes2):
 # Plot visualization of RTN orbit
 fig3 = plt.figure(figsize=(10, 10))
 axes3 = fig3.add_subplot(111, projection='3d')
-plot_orbit_and_attitude(axes3, x, y, z, xyz_sampled, dcm_sampled)
+plot_orbit_and_attitude(axes3,
+                        x[::sampleSkip], 
+                        y[::sampleSkip], 
+                        z[::sampleSkip], 
+                        xyz_sampled, 
+                        dcm_sampled)
