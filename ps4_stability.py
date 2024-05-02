@@ -14,6 +14,10 @@ from source.attitudes import QTR, MRP
 
 plt.close("all")
 
+# For saving the figures.
+filename_prefix = 'renders/PS4-Stability-'
+axis_names = ['Yaw', 'Pitch', 'Roll']
+
 # Initial parameters.
 geo_elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6];
 
@@ -28,7 +32,7 @@ initial_inertia = np.diag( [4770.398, 6313.894, 7413.202] );
 initial_attitude = QTR( dcm = np.identity(3) );
 
 # Initialize simulation time parameters.
-duration, timestep = 360, 1.0
+duration, timestep = 5 * 360, 1.0
 samples = int(duration / timestep) + 1
 timeAxis = np.linspace(0, duration, samples)
 
@@ -36,37 +40,37 @@ timeAxis = np.linspace(0, duration, samples)
 # velocity is set to 1 degree for one axis, with a randomized
 # randomized perturbation added to it.
 for axis in [0, 1, 2]:
-    
+
     n = 0
     now = 0.0
-    
+
     # Perturb the initial conditions,
     perturbation = 0.1 * omega_magnitude * np.deg2rad( np.random.rand(3) );
     perturbed_omega = initial_omegas[axis] + perturbation;
-    
+
     # Initialize the spacecraft with perturbed omega
     sc = Spacecraft( elements = geo_elements,
                      ohmBN = perturbed_omega,
                      attBN = initial_attitude,
                      inertia = initial_inertia )
-    
+
     # Setup containers of states.
     states_omega = np.zeros(( samples, 3 ))
     states_angle = np.zeros(( samples, 3 ))
-    
+
     while now <= duration:
-        
+
         # Store the angular velocities and 321 Euler angles
         states_omega[n,:] = np.array([sc.ohmBN[0], sc.ohmBN[1], sc.ohmBN[2]])
         states_angle[n,:] = sc.attBN.get_euler_angles_321()
-        
+
         # Propagate the attitude and the angular velocity
         sc.propagate_orbit(timestep)
         sc.propagate_attitude(timestep, torque=[0,0,0])
-        
+
         now += timestep
         n += 1
-    
+
     # Plot Euler angles.
     fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
     labels = ['Roll \u03C6', 'Pitch \u03B8', 'Yaw \u03C8']  # psi, theta, phi
@@ -79,7 +83,10 @@ for axis in [0, 1, 2]:
         ax.grid(True)
         if i == 2:
             ax.set_xlabel('Time [seconds]')
-        
+
+    # Save the figure.
+    fig1.savefig(filename_prefix + axis_names[axis] + '-Angle.png', dpi=300)
+
     # Plot angular velocities.
     fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
     labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
@@ -89,3 +96,6 @@ for axis in [0, 1, 2]:
         ax.grid(True)
         if i == 2:
             ax.set_xlabel('Time [seconds]')
+
+    # Save the figure.
+    fig2.savefig(filename_prefix + axis_names[axis] + '-Omega.png', dpi=300)
