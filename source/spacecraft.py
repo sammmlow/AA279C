@@ -714,6 +714,19 @@ class Spacecraft():
             self.__dict__['vR'] = v_rtn[0]
             self.__dict__['vT'] = v_rtn[1]
             self.__dict__['vN'] = v_rtn[2]
+            
+    # TODO: integrate into the attitude integration? Rc is the position 
+    # vector of the center of mass expressed in principal body coordinates.
+    # Should be used with a flag to enable or disable.
+    def compute_gravity_gradient_torque(self, GM, Rc, inertia):
+        Rc = self.attBN.dcm.T @ np.array([self.px, self.py, self.pz])
+        k = 3 * self.GM / (np.linalg.norm(Rc)**3) # km units cancel out
+        Rcx, Rcy, Rcz = Rc / np.linalg.norm(Rc)
+        Ix, Iy, Iz = np.diag(inertia)
+        Mx = Rcy * Rcz * (Iz - Iy)
+        My = Rcx * Rcz * (Ix - Iz)
+        Mz = Rcx * Rcy * (Iy - Ix)
+        return k * np.array([Mx, My, Mz])
 
     # TODO: ROEs and RTN needs to be updated whenever absolute motion is updated
     def update_relative_motion(self):

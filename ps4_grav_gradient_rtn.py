@@ -88,16 +88,17 @@ plt.close("all")
 geo_elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6];
 sc = Spacecraft( elements = geo_elements )
 
-# Initialize the angular velocity as the mean motion
-initial_omega = [0, 0, sc.n];
-
 # The principal inertia tensor of The Nimble Ladybug is...
 initial_inertia = np.diag( [4770.398, 6313.894, 7413.202] );
 
-# The initial attitude is a quaternion aligned to the SC's RTN.
+# Uncomment for RTN-only alignment
+# initial_omega = [0, 0, sc.n];
+# initial_attitude = QTR( dcm = sc.get_hill_frame().T );
+
+#Uncomment for the arbitrary random alignment
+initial_omega = [0, 0, 0];
 arbitrary_yaw = dcmX( np.deg2rad(45.0) )
 arbitrary_roll = dcmZ( np.deg2rad(45.0) )
-# initial_attitude = QTR( dcm = sc.get_hill_frame().T );
 initial_attitude = QTR( 
     dcm = arbitrary_yaw @ arbitrary_roll @ sc.get_hill_frame().T );
 
@@ -108,7 +109,7 @@ sc.inertia = initial_inertia
 
 # Initialize simulation time parameters.
 now, n, duration, timestep = 0.0, 0, 86400, 30.0
-samples = int(duration / timestep) + 1
+samples = int(duration / timestep)
 timeAxis = np.linspace(0, duration, samples)
 sample_bigstep = 8
 sample_trigger = duration / sample_bigstep # Fragile code. 
@@ -124,8 +125,10 @@ states_angle = np.zeros(( 3, samples ))
 states_quatr = np.zeros(( 4, samples ))
 states_gtorq = np.zeros(( 3, samples ))
 
+# Just a counter for plotting the number of attitude triads in the 3D plot.
 nBig = 0
 
+# Make this number bigger to plot faster with fewer points.
 sampleSkip = 5
 
 # Propagate attitude and orbit
