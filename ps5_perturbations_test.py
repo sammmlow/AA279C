@@ -35,23 +35,58 @@ def compute_gravity_gradient_torque(GM, Rc, inertia):
     return np.array([Mx, My, Mz])
 
 # Computes magnetic moment torques (body). Rc in principal body.
-def compute_magnetic_torque_component(Rc):
-    n = 432
-    A = 0.0556
-    I = 1
-    g0_1 = -30186 # nT
-    g1_1 = -2036 # nT
-    h1_1 = 5735 # nT
-    B0_first_order = np.sqrt(g0_1**2 + g1_1**2 + h1_1**2)
+def compute_magnetic_torque_component(Rc, ncoils = 432, A = 0.0556, I = 1, debug=False):
+
+    # Calculate the magnetic field overall strength (dipole)
+    ref_year = 1975
+    curr_year = 2024
+    dyear = curr_year - ref_year
+    g0_1_dot = 25.6 # nT/yr
+    g1_1_dot = 10.0 # nT/yr
+    h1_1_dot = -10.2 # nT/yr
+
+    g0_1 = -30186 + g0_1_dot * dyear # nT
+    g1_1 = -2036 + g1_1_dot * dyear # nT
+    h1_1 = 5735 + h1_1_dot * dyear # nT
+
+    B0_first_order = np.sqrt(g0_1**2 + g1_1**2 + h1_1**2) # nT
+    B0_first_order = B0_first_order * 1E-9 # Convert to T
+
+    # Calculate the magnetic field strength at the spacecraft location
     earth_radius = 6378 # km
     Rc_norm = np.linalg.norm( Rc )
     Rc_hat = Rc / Rc_norm
-    constant = B0_first_order * ((earth_radius / Rc_norm)**3)
+    Bconstant = B0_first_order * ((earth_radius / Rc_norm)**3) # T
+
+    # Calculate the magnetic field with direction
+    tilt_angle = np.deg2rad(11.5) # deg
+    m_hat_Earth = np.array([0, np.sin(tilt_angle), np.cos(tilt_angle)])  # Assume Earth frame
+    mEarth_Rc_dot = np.dot(m_hat_Earth, Rc_hat)
+    B_modulation = (3* mEarth_Rc_dot * Rc_hat - m_hat_Earth)
+    B_vec = (Bconstant) * B_modulation
+
+    # Calculate the magnetic moment
     m_hat = np.array([0,0,1])  # Assume body frame
-    m_max = n * A * I * m_hat
-    m_Rc_dot = np.dot(m_hat, Rc_hat)
-    B = (constant * 1E-9) * (3* m_Rc_dot * Rc_hat - m_hat)
-    return np.cross(m_max, B)
+    # m_hat = np.array([0,1,0])  # Assume body frame
+    m_max = ncoils * A * I # A m^2
+    m_max_vec = m_max * m_hat # A m^2
+
+    # Calculate the torque
+    torque = np.cross(m_max_vec, B_vec)
+    cross_loss = np.cross(m_hat, B_modulation)
+
+    # Calculate the max case
+    if debug:
+        print()
+        print("B at GEO [T]:      ", Bconstant)                   # MATCHES
+        print("B modulation [-]:  ", np.round(B_modulation, 6))
+        print("B  [T]:            ", np.round(B_vec, 10))
+        print("m_max_vec [A m2]:  ", m_max_vec)                   # MATCHES
+        print("torque max [N m]:  ", 2 * m_max * Bconstant)       # MATCHES
+        print("torque [N m]:      ", np.round(torque, 15), np.linalg.norm(torque))
+        print("cross loss [-]:    ", np.round(cross_loss, 15), np.linalg.norm(cross_loss))
+
+    return torque
 
 def compute_sun_position_eci(JC2000_TT):
     
