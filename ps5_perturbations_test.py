@@ -8,6 +8,7 @@
 # and angles.
 
 import numpy as np
+import datetime
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 from matplotlib.image import imread
@@ -15,11 +16,17 @@ from mpl_toolkits.mplot3d import Axes3D
 from source.spacecraft import Spacecraft
 from source.attitudes import QTR, MRP
 from source.rotation import dcmX, dcmY, dcmZ
+from source import iau1976
 
 # ===========================================================================
 
 # For saving the figures
 file_path = "figures/ps5/PS5-Pert-StabilityTests-"
+
+# ===========================================================================
+
+# Assume a current time, simply for calculating ECEF coordinates.
+current_time = datetime.datetime(2025, 1, 1, 12, 0, 0)
 
 # ===========================================================================
 
@@ -35,7 +42,9 @@ def compute_gravity_gradient_torque(GM, Rc, inertia):
     return np.array([Mx, My, Mz])
 
 # Computes magnetic moment torques (body). Rc in principal body.
-def compute_magnetic_torque_component(Rc, ncoils = 432, A = 0.0556, I = 1, debug=False):
+def compute_magnetic_torque_component(pos_eci, att_body_eci,
+                                      ncoils = 432, A = 0.0556,
+                                      I = 1, debug=False):
 
     # Calculate the magnetic field overall strength (dipole)
     ref_year = 1975
@@ -51,29 +60,50 @@ def compute_magnetic_torque_component(Rc, ncoils = 432, A = 0.0556, I = 1, debug
 
     B0_first_order = np.sqrt(g0_1**2 + g1_1**2 + h1_1**2) # nT
     B0_first_order = B0_first_order * 1E-9 # Convert to T
+    
+    # Compute the magnetic moment dipole of the Earth
+    deg2rad = np.pi / 180.0
+    B_north_lat = 78.6 * deg2rad # Geocentric deg
+    B_north_lon = 289.3 * deg2rad # Geocentric deg
+    
+    # Earth dipole in ECEF
+    m_hat_Earth_x = np.cos(B_north_lat) * np.cos(B_north_lon)
+    m_hat_Earth_y = np.cos(B_north_lat) * np.sin(B_north_lon)
+    m_hat_Earth_z = np.sin(B_north_lat)
+    m_hat_Earth_ecef = np.array([m_hat_Earth_x, m_hat_Earth_y, m_hat_Earth_z])
+    
+    # Earth dipole in ECI. Ignores pole wander (we need ERP files for that)
+    N  = iau1976.nutation( current_time )
+    S  = iau1976.diurnal( current_time, N )
+    P  = iau1976.precession( current_time )
+    Nt = N.transpose()
+    St = S.transpose()
+    Pt = P.transpose()
+    m_hat_Earth_eci = Pt @ Nt @ St @ m_hat_Earth_ecef
 
     # Calculate the magnetic field strength at the spacecraft location
     earth_radius = 6378 # km
-    Rc_norm = np.linalg.norm( Rc )
-    Rc_hat = Rc / Rc_norm
-    Bconstant = B0_first_order * ((earth_radius / Rc_norm)**3) # T
-
-    # Calculate the magnetic field with direction
-    tilt_angle = np.deg2rad(11.5) # deg
-    m_hat_Earth = np.array([0, np.sin(tilt_angle), np.cos(tilt_angle)])  # Assume Earth frame
-    mEarth_Rc_dot = np.dot(m_hat_Earth, Rc_hat)
-    B_modulation = (3* mEarth_Rc_dot * Rc_hat - m_hat_Earth)
+    pos_norm = np.linalg.norm( pos_eci )
+    pos_eci_hat = pos_eci / pos_norm
+    Bconstant = B0_first_order * ((earth_radius / pos_norm)**3) # T
+    
+    # Compute magnetic field vector in ECI
+    mEarth_Rc_dot = np.dot(m_hat_Earth_eci, pos_eci_hat)
+    B_modulation = (3* mEarth_Rc_dot * pos_eci_hat - m_hat_Earth_eci)  # ECI
     B_vec = (Bconstant) * B_modulation
+    
+    # Convert B_vec to body frame
+    B_vec_body = att_body_eci.dcm.T @ B_vec
 
-    # Calculate the magnetic moment
-    m_hat = np.array([0,0,1])  # Assume body frame
-    # m_hat = np.array([0,1,0])  # Assume body frame
+    # Calculate the magnetic moment.
+    # Assume satellite dipole moment is in body-frame Z
+    m_hat_body = np.array([0,0,1])
     m_max = ncoils * A * I # A m^2
-    m_max_vec = m_max * m_hat # A m^2
+    m_max_vec = m_max * m_hat_body # A m^2
 
     # Calculate the torque
-    torque = np.cross(m_max_vec, B_vec)
-    cross_loss = np.cross(m_hat, B_modulation)
+    torque = np.cross(m_max_vec, B_vec_body)
+    cross_loss = np.cross(m_hat_body, B_modulation)
 
     # Calculate the max case
     if debug:
@@ -87,41 +117,6 @@ def compute_magnetic_torque_component(Rc, ncoils = 432, A = 0.0556, I = 1, debug
         print("cross loss [-]:    ", np.round(cross_loss, 15), np.linalg.norm(cross_loss))
 
     return torque
-
-def compute_sun_position_eci(JC2000_TT):
-    
-    # Constants
-    kDegree = np.pi / 180.0
-    kArcsec = kDegree / 3600.0
-    two_pi = 2.0 * np.pi
-    kEarthObliquity = 23.439281 * np.pi / 180.0
-    
-    # Function to calculate the obliquity rotation matrix
-    def obliquity_rotation_matrix():
-        c = np.cos(kEarthObliquity)
-        s = np.sin(kEarthObliquity)
-        return np.array([[1.0, 0.0, 0.0],
-                         [0.0, c, -s],
-                         [0.0, s,  c]])
-    
-    # Julian centuries since J2000
-    T = JC2000_TT 
-    
-    # Mean anomaly of the Sun
-    M = (357.5256 + 35999.049 * T + 1.3972 * T) % 360.0 * kDegree
-    
-    # Geometric mean longitude of the Sun
-    l = (282.9400 * kDegree + M + 6892 * np.sin(M) * kArcsec +
-         72 * np.sin(2 * M) * kArcsec) % two_pi
-    
-    # Distance to the Sun in meters
-    r = (149.619 - 2.499 * np.cos(M) - 0.021 * np.cos(2 * M)) * 1e9
-    
-    # Cartesian coordinates of the Sun
-    r_sun = [r * np.cos(l), r * np.sin(l), 0.0]
-    
-    return obliquity_rotation_matrix() * r_sun
-
 
 def compute_solar_torque_component():
     return
@@ -257,9 +252,10 @@ while now < duration:
         
     # Compute gravity gradient torque
     Rc_inertial = np.array([x[n], y[n], z[n]])
-    Rc = sc.attBN.dcm.T @ Rc_inertial
-    gTorque = compute_gravity_gradient_torque(sc.GM, Rc, sc.inertia)
-    mTorque = compute_magnetic_torque_component(Rc)
+    Rc_principal_body = sc.attBN.dcm.T @ Rc_inertial
+    gTorque = compute_gravity_gradient_torque(
+        sc.GM, Rc_principal_body, sc.inertia)
+    mTorque = compute_magnetic_torque_component( Rc_inertial, sc.attBN )
     # TODO: add solar rad pressure torque
     
     # Store the computed perturbation torques
