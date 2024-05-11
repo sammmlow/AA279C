@@ -158,11 +158,11 @@ def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
         return total_torque
     
     # Initialize the Cd/Cs/Ca. Daniel, feel free to change these values
-    Cd_solar = 0.25
-    Cs_solar = 0.25
+    Cd_solar = 0.3
+    Cs_solar = 0.1
     # Ca_solar = 1 - Cd_solar - Cs_solar
-    Cd_titanium = 0.25
-    Cs_titanium = 0.50
+    Cd_titanium = 0.2
+    Cs_titanium = 0.6
     # Ca_titanium = 1 - Cd_titanium - Cs_titanium
     
     # Convert from ECI to body frame
@@ -197,23 +197,23 @@ def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
         if illuminated:
             area = face_areas[i]
             barycenter = face_barycenters[i]
-            total_torque += barycenter * srp.srp_area_loss_plane(
-                Cs_solar, Cd_solar, sun_direction_body, normal, area)
+            total_torque += np.cross(barycenter, srp.srp_area_loss_plane(
+                Cs_solar, Cd_solar, sun_direction_body, normal, area))
     
     # For the curved cylinder, add the total radiation pressure torque
     cylinder_barycenter = np.array([-1.426, 0.000, -0.00314])
-    cylinder_z_vec = np.array([0., 0., 1.])
+    cylinder_z_vec = np.array([1., 0., 0.])
     cylinder_radius = 0.625
     cylinder_height = 1.250
-    total_torque += cylinder_barycenter * srp.srp_area_loss_cylinder(
+    total_torque += np.cross(cylinder_barycenter, srp.srp_area_loss_cylinder(
         Cs_titanium, Cd_titanium, sun_direction_body,
-        cylinder_z_vec, cylinder_radius, cylinder_height)
+        cylinder_z_vec, cylinder_radius, cylinder_height))
     
     # For the fuel tank and sphere, add the total radiation pressure torque
     sphere_barycenter = np.array([0.298, 0.000, -0.00314])
     sphere_radius = 1.250
-    total_torque += sphere_barycenter * srp.srp_area_loss_sphere(
-        Cd_titanium, sun_direction_body, sphere_radius)
+    total_torque += np.cross(sphere_barycenter, srp.srp_area_loss_sphere(
+        Cd_titanium, sun_direction_body, sphere_radius))
     
     # Solar radiation pressure constant = solar constant / speed of light
     return 4.5E-6 * total_torque
@@ -283,13 +283,14 @@ sc = Spacecraft( elements = geo_elements )
 # Setup the inertias, omegas, and initial attitudes... note the order of
 # operations of rotations! Perturb the RTN first, then snap the full
 # rotation to the perturbed RTN frame.
+dcm_rotation = dcmY( np.deg2rad(-90.0) )
 dcm_rtn =  sc.get_hill_frame().T
 initial_omega = np.array([0, 0, sc.n]);
 
 # Set the initial omegas, attitudes, and inertias.
 # Perturb by +1 deg in all directions.
-sc.ohmBN = initial_omega
-sc.attBN = QTR( dcm = dcm_rtn );
+sc.ohmBN = dcm_rotation @ initial_omega
+sc.attBN = QTR( dcm = dcm_rotation @ dcm_rtn );
 sc.inertia = initial_inertia
 
 # Initialize simulation time parameters.
@@ -298,7 +299,7 @@ one_orbital_period = 60 * 60 * 24
 n_periods = 10
 duration = n_periods * one_orbital_period
 
-now, n, timestep = 0.0, 0, 120.0
+now, n, timestep = 0.0, 0, 60.0
 samples = int(duration / timestep)
 print("Number of samples: ", samples)
 timeAxis = np.linspace(0, duration, samples)
@@ -355,7 +356,7 @@ while now < duration:
         sc.GM, Rc_principal_body, sc.inertia)
     mTorque = compute_magnetic_torque_component(current_time, Rc_eci, sc.attBN)
     sTorque = compute_solar_torque_component(current_time, Rc_eci, sc.attBN)
-    
+    #sTorque = np.zeros(3)
     # Store the computed perturbation torques
     states_gtorq[:, n] = gTorque
     states_mtorq[:, n] = mTorque
@@ -391,70 +392,82 @@ for i in range(n_periods + 1):
     plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
 
 plt.grid()
-# plt.show()
+plt.show()
 
 # Save the quaternion plot
 plt.savefig(file_path + 'QTR-Pert.png', dpi=200, bbox_inches='tight')
 
 print("Plotting torque: gravity gradient")
 
+max_grav_grad = 21.1e-6 # N m
+
 # Plot gravity gradients.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_gtorq[0,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_gtorq[1,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_gtorq[2,::sampleSkip] )
+plt.hlines( max_grav_grad, timeAxis[0], timeAxis[-1], colors='r')
+plt.hlines(-max_grav_grad, timeAxis[0], timeAxis[-1], colors='r')
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Gravity Gradient Torque in Principal-Body Axis [N m]')
-plt.legend(['$G_x$','$G_y$','$G_z$'])
+plt.legend(['$G_x$','$G_y$','$G_z$','Max'])
 
 # Plot the orbital periods as vertical lines.
 for i in range(n_periods + 1):
     plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
 
 plt.grid()
-# plt.show()
+plt.show()
 
 # Save the gravity gradient plot
 plt.savefig(file_path + 'gTorque-Pert.png', dpi=200, bbox_inches='tight')
 
 print("Plotting torque: magnetic")
 
+max_mag_torque = 4.9e-6 # N m
+
 # Plot magnetic moment torques.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_mtorq[0,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_mtorq[1,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_mtorq[2,::sampleSkip] )
+plt.hlines( max_mag_torque, timeAxis[0], timeAxis[-1], colors='r')
+plt.hlines(-max_mag_torque, timeAxis[0], timeAxis[-1], colors='r')
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Magnetic Moment Torque in Principal-Body Axis [N m]')
-plt.legend(['$M_x$','$M_y$','$M_z$'])
+plt.legend(['$M_x$','$M_y$','$M_z$','Max'])
 
 # Plot the orbital periods as vertical lines.
 for i in range(n_periods + 1):
     plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
 
 plt.grid()
-# plt.show()
+plt.show()
 
 # Save the magnetic moment plot
 plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
 
 print("Plotting torque: SRP")
 
+max_srp_torque = 96.6e-6 # N m
+
 # Plot SRP moment torques.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_storq[0,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_storq[1,::sampleSkip] )
 plt.plot( timeAxis[::sampleSkip], states_storq[2,::sampleSkip] )
+plt.hlines( max_srp_torque, timeAxis[0], timeAxis[-1], colors='r')
+plt.hlines(-max_srp_torque, timeAxis[0], timeAxis[-1], colors='r')
 plt.xlabel('Simulation time [sec]')
 plt.ylabel('Solar Radiation Pressure Torque in Principal-Body Axis [N m]')
-plt.legend(['$S_x$','$S_y$','$S_z$'])
+plt.legend(['$S_x$','$S_y$','$S_z$','Max'])
 
 # Plot the orbital periods as vertical lines.
 for i in range(n_periods + 1):
     plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
 
 plt.grid()
-# plt.show()
+plt.show()
 
 # Save the SRP plot
 plt.savefig(file_path + 'sTorque-Pert.png', dpi=200, bbox_inches='tight')
@@ -478,6 +491,8 @@ for i, ax in enumerate(axes1):
     for i in range(n_periods + 1):
         ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
 
+plt.show()
+
 # Save the Euler angle plot
 plt.savefig(file_path + 'Angles-Pert.png', dpi=200, bbox_inches='tight')
 
@@ -499,19 +514,21 @@ for i, ax in enumerate(axes2):
 
 # Save the angular velocity plot
 plt.savefig(file_path + 'Omegas-Pert.png', dpi=200, bbox_inches='tight')
-        
-# print("Plotting RTN")
-# # Plot visualization of RTN orbit
-# fig3 = plt.figure(figsize=(10, 10))
-# axes3 = fig3.add_subplot(111, projection='3d')
-# plot_orbit_and_attitude(axes3,
-#                         x[::sampleSkip], 
-#                         y[::sampleSkip], 
-#                         z[::sampleSkip], 
-#                         xyz_sampled, 
-#                         dcm_sampled)
 
-# plt.tight_layout()
+plt.show()
 
-# # Save the RTN plot
-# plt.savefig(file_path + 'Orbit-Pert.png', dpi=200, bbox_inches='tight')
+print("Plotting RTN")
+# Plot visualization of RTN orbit
+fig3 = plt.figure(figsize=(10, 10))
+axes3 = fig3.add_subplot(111, projection='3d')
+plot_orbit_and_attitude(axes3,
+                        x[::sampleSkip], 
+                        y[::sampleSkip], 
+                        z[::sampleSkip], 
+                        xyz_sampled, 
+                        dcm_sampled)
+
+plt.tight_layout()
+
+# Save the RTN plot
+plt.savefig(file_path + 'Orbit-Pert.png', dpi=200, bbox_inches='tight')
