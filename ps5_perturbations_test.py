@@ -150,7 +150,8 @@ def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
     total_torque = np.array([0., 0., 0.])
     
     # Get the direction vector to the sun.
-    sun_direction_eci = ephemeris.compute_sun_position_eci( current_time )
+    sun_pos_eci = ephemeris.compute_sun_position_eci( current_time )
+    sun_direction_eci = sun_pos_eci / norm(sun_pos_eci)
     
     # If not in eclipse, return zero
     if check_if_in_eclipse(pos_eci, sun_direction_eci):
@@ -176,16 +177,16 @@ def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
         4.00, # Solar panel right -Z
         ]
     face_normals = [
-        [0, 0,  1], # Solar panel left +Z
-        [0, 0, -1], # Solar panel left -Z
-        [0, 0,  1], # Solar panel right +Z
-        [0, 0, -1], # Solar panel right -Z
+        np.array([0., 0.,  1.]), # Solar panel left +Z
+        np.array([0., 0., -1.]), # Solar panel left -Z
+        np.array([0., 0.,  1.]), # Solar panel right +Z
+        np.array([0., 0., -1.]), # Solar panel right -Z
         ]
     face_barycenters = [
-        [-1.43,  3.00, 0.01], # Solar panel left +Z
-        [-1.43,  3.00, 0.00], # Solar panel left -Z
-        [-1.43, -3.00, 0.01], # Solar panel right +Z
-        [-1.43, -3.00, 0.00], # Solar panel right -Z
+        np.array([-1.43,  3.00, 0.01]), # Solar panel left +Z
+        np.array([-1.43,  3.00, 0.00]), # Solar panel left -Z
+        np.array([-1.43, -3.00, 0.01]), # Solar panel right +Z
+        np.array([-1.43, -3.00, 0.00]), # Solar panel right -Z
         ]
     
     # For each face, add the total radiation pressure torque
@@ -213,7 +214,9 @@ def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
     sphere_radius = 1.250
     total_torque += sphere_barycenter * srp.srp_area_loss_sphere(
         Cd_titanium, sun_direction_body, sphere_radius)
-    return total_torque
+    
+    # Solar radiation pressure constant = solar constant / speed of light
+    return 4.5E-6 * total_torque
 
 # Define a function here that plots a satellite in orbit, with current
 # attitude expressed as columns of its DCM (for visualization). 
@@ -391,8 +394,9 @@ plt.grid()
 # plt.show()
 
 # Save the quaternion plot
-plt.savefig(file_path + 'QTR-Pert.png', dpi=200, 
-            bbox_inches='tight')
+plt.savefig(file_path + 'QTR-Pert.png', dpi=200, bbox_inches='tight')
+
+print("Plotting torque: gravity gradient")
 
 # Plot gravity gradients.
 plt.figure()
@@ -413,6 +417,8 @@ plt.grid()
 # Save the gravity gradient plot
 plt.savefig(file_path + 'gTorque-Pert.png', dpi=200, bbox_inches='tight')
 
+print("Plotting torque: magnetic")
+
 # Plot magnetic moment torques.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_mtorq[0,::sampleSkip] )
@@ -432,6 +438,8 @@ plt.grid()
 # Save the magnetic moment plot
 plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
 
+print("Plotting torque: SRP")
+
 # Plot SRP moment torques.
 plt.figure()
 plt.plot( timeAxis[::sampleSkip], states_storq[0,::sampleSkip] )
@@ -449,7 +457,7 @@ plt.grid()
 # plt.show()
 
 # Save the SRP plot
-plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
+plt.savefig(file_path + 'sTorque-Pert.png', dpi=200, bbox_inches='tight')
     
 print("Plotting Euler")
 
