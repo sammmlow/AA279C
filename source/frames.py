@@ -31,7 +31,7 @@ import numpy as np
 # Import local libraries
 #from source import rotate
 
-from source import rotate
+from source import iau1976
 
 ##############################################################################
 ##############################################################################
@@ -61,8 +61,8 @@ def icrf2cep(t, r, v = np.zeros(3)):
     
     '''
     
-    P = rotate.precession(t) # Precession rotation DCM
-    N = rotate.nutation(t) # Nutation rotation DCM
+    P = iau1976.precession(t) # Precession rotation DCM
+    N = iau1976.nutation(t) # Nutation rotation DCM
     
     if sum( abs( v ) ) == 0.0:
         r_cep = N @ P @ r
@@ -100,15 +100,15 @@ def cep2itrf(t, r, v = np.zeros(3)):
     
     '''
     
-    N = rotate.nutation(t)
-    S = rotate.diurnal( t, N ) # Diurnal Rotation DCM 
-    M = rotate.polewander( t ) # Pole Wander Rotation DCM
+    N = iau1976.nutation(t)
+    S = iau1976.diurnal( t, N ) # Diurnal Rotation DCM 
+    M = iau1976.polewander( t ) # Pole Wander Rotation DCM
     
     if sum( abs( v ) ) == 0.0:
         r_itrf = M @ S @ r
         return r_itrf, np.zeros(3)
     else:
-        Sd = rotate.diurnal_dot( t, S )
+        Sd = iau1976.diurnal_dot( t, S )
         r_itrf = M @ S @ r
         v_itrf = M @ ((Sd @ r) + (S @ v))
         return r_itrf, v_itrf
@@ -141,9 +141,9 @@ def itrf2cep(t, r, v = np.zeros(3)):
     
     '''
     
-    N  = rotate.nutation(t)
-    S  = rotate.diurnal( t, N )
-    M  = rotate.polewander( t )
+    N  = iau1976.nutation(t)
+    S  = iau1976.diurnal( t, N )
+    M  = iau1976.polewander( t )
     Si = S.transpose()
     Mi = M.transpose()
     
@@ -151,7 +151,7 @@ def itrf2cep(t, r, v = np.zeros(3)):
         r_cep = Si @ Mi @ r
         return r_cep, np.zeros(3)
     else:
-        Sd = rotate.diurnal_dot( t, S )
+        Sd = iau1976.diurnal_dot( t, S )
         r_cep = Si @ Mi @ r
         v_cep = Si @ (( Mi @ v ) - ( Sd @ r_cep ))
         return r_cep, v_cep
@@ -184,8 +184,8 @@ def cep2icrf(t, r, v = np.zeros(3)):
     
     '''
     
-    Pi = rotate.precession(t).transpose()
-    Ni = rotate.nutation(t).transpose()
+    Pi = iau1976.precession(t).transpose()
+    Ni = iau1976.nutation(t).transpose()
     
     if sum( abs( v ) ) == 0.0:
         r_icrf = Pi @ Ni @ r
