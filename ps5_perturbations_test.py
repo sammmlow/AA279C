@@ -119,8 +119,30 @@ def compute_magnetic_torque_component(t, pos_eci, att_body2eci,
 
     return torque
 
-def compute_solar_torque_component():
-    return
+# All vectors in this function should be expressed in ECI frame, units in km.
+def check_if_in_eclipse(pos_eci, sun_direction_eci):
+    earth_radius = 6378.140
+    pos_parallel = sun_direction_eci * np.dot(pos_eci, sun_direction_eci)
+    pos_perpendicular = pos_eci - pos_parallel
+    which_side = np.dot(pos_parallel, sun_direction_eci)
+    return ((norm(pos_perpendicular) < earth_radius) and (which_side < 0))
+
+# All vectors input in this function should be expressed in body frame.
+# Returns two objects, an illumination boolean and the incident angle
+def check_illumination_condition(pos_eci, att_body2eci, face_normal_body,
+                                 sun_direction_eci):
+    sun_direction_body = att_body2eci.dcm.T @ sun_direction_eci
+    
+    # If the spacecraft is in eclipse, return false.
+    if (check_if_in_eclipse(pos_eci, sun_direction_eci)):
+        return [False, np.nan]
+    
+    # If the spacecraft is being illuminated, check if the face is on the
+    # illuminated side or not.
+    dot_product = np.dot( face_normal_body, sun_direction_body )
+    boolean_illuminated = dot_product > 0.0  # Illuminated if > 0.0.
+    incident_angle = np.arccos( dot_product )
+    return [boolean_illuminated, incident_angle]
 
 # Define a function here that plots a satellite in orbit, with current
 # attitude expressed as columns of its DCM (for visualization). 
