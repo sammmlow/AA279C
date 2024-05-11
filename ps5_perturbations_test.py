@@ -18,6 +18,7 @@ from source.attitudes import QTR, MRP
 from source.rotation import dcmX, dcmY, dcmZ
 from source import iau1976
 from source import ephemeris
+from source import srp
 
 # ===========================================================================
 
@@ -128,21 +129,91 @@ def check_if_in_eclipse(pos_eci, sun_direction_eci):
     return ((norm(pos_perpendicular) < earth_radius) and (which_side < 0))
 
 # All vectors input in this function should be expressed in body frame.
-# Returns two objects, an illumination boolean and the incident angle
+# Returns two objects, an illumination boolean and the incident angle.
+# Should run `check_if_in_eclipse` first before running this function.
 def check_illumination_condition(pos_eci, att_body2eci, face_normal_body,
                                  sun_direction_eci):
     sun_direction_body = att_body2eci.dcm.T @ sun_direction_eci
-    
-    # If the spacecraft is in eclipse, return false.
-    if (check_if_in_eclipse(pos_eci, sun_direction_eci)):
-        return [False, np.nan]
-    
-    # If the spacecraft is being illuminated, check if the face is on the
-    # illuminated side or not.
     dot_product = np.dot( face_normal_body, sun_direction_body )
     boolean_illuminated = dot_product > 0.0  # Illuminated if > 0.0.
     incident_angle = np.arccos( dot_product )
     return [boolean_illuminated, incident_angle]
+
+# This function is rather hard-coded at the moment, and assumes we only have
+# four discrete objects to deal with: 02x planes (solar cells), 01x sphere,
+# and 01x cylinder. Barycenters and normal vectors are all hardcoded for now.
+# Each solar cell is assumed to contribute only two faces: front and back.
+def compute_solar_torque_component(current_time, pos_eci, att_body2eci):
+    assert type(current_time) == datetime.datetime
+    
+    # Initialize some total torque vector.
+    total_torque = np.array([0., 0., 0.])
+    
+    # Get the direction vector to the sun.
+    sun_direction_eci = ephemeris.compute_sun_position_eci( current_time )
+    
+    # If not in eclipse, return zero
+    if check_if_in_eclipse(pos_eci, sun_direction_eci):
+        return total_torque
+    
+    # Initialize the Cd/Cs/Ca. Daniel, feel free to change these values
+    Cd_solar = 0.25
+    Cs_solar = 0.25
+    # Ca_solar = 1 - Cd_solar - Cs_solar
+    Cd_titanium = 0.25
+    Cs_titanium = 0.50
+    # Ca_titanium = 1 - Cd_titanium - Cs_titanium
+    
+    # Convert from ECI to body frame
+    sun_direction_body = att_body2eci.dcm.T @ sun_direction_eci
+    
+    # Hardcoded set of flat faces. Not the best way to do this. Also this
+    # should cancel out any SRP torques since the solar cells are symmetric.
+    face_areas = [
+        4.00, # Solar panel left +Z
+        4.00, # Solar panel left -Z
+        4.00, # Solar panel right +Z
+        4.00, # Solar panel right -Z
+        ]
+    face_normals = [
+        [0, 0,  1], # Solar panel left +Z
+        [0, 0, -1], # Solar panel left -Z
+        [0, 0,  1], # Solar panel right +Z
+        [0, 0, -1], # Solar panel right -Z
+        ]
+    face_barycenters = [
+        [-1.43,  3.00, 0.01], # Solar panel left +Z
+        [-1.43,  3.00, 0.00], # Solar panel left -Z
+        [-1.43, -3.00, 0.01], # Solar panel right +Z
+        [-1.43, -3.00, 0.00], # Solar panel right -Z
+        ]
+    
+    # For each face, add the total radiation pressure torque
+    for i in range(len(face_normals)):
+        normal = face_normals[i]
+        [illuminated, incident_angle] = check_illumination_condition(
+            pos_eci, att_body2eci, normal, sun_direction_eci)
+        if illuminated:
+            area = face_areas[i]
+            barycenter = face_barycenters[i]
+            total_torque += barycenter * srp.srp_area_loss_plane(
+                Cs_solar, Cd_solar, sun_direction_body, normal, area)
+    
+    # For the curved cylinder, add the total radiation pressure torque
+    cylinder_barycenter = np.array([-1.426, 0.000, -0.00314])
+    cylinder_z_vec = np.array([0., 0., 1.])
+    cylinder_radius = 0.625
+    cylinder_height = 1.250
+    total_torque += cylinder_barycenter * srp.srp_area_loss_cylinder(
+        Cs_titanium, Cd_titanium, sun_direction_body,
+        cylinder_z_vec, cylinder_radius, cylinder_height)
+    
+    # For the fuel tank and sphere, add the total radiation pressure torque
+    sphere_barycenter = np.array([0.298, 0.000, -0.00314])
+    sphere_radius = 1.250
+    total_torque += sphere_barycenter * srp.srp_area_loss_sphere(
+        Cd_titanium, sun_direction_body, sphere_radius)
+    return total_torque
 
 # Define a function here that plots a satellite in orbit, with current
 # attitude expressed as columns of its DCM (for visualization). 
@@ -243,6 +314,7 @@ states_angle = np.zeros(( 3, samples ))
 states_quatr = np.zeros(( 4, samples ))
 states_gtorq = np.zeros(( 3, samples ))
 states_mtorq = np.zeros(( 3, samples ))
+states_storq = np.zeros(( 3, samples ))
 
 # Just a counter for plotting the number of attitude triads in the 3D plot.
 nBig = 0
@@ -274,23 +346,21 @@ while now < duration:
         nBig += 1
         
     # Compute gravity gradient torque
-    Rc_inertial = np.array([x[n], y[n], z[n]])
-    Rc_principal_body = sc.attBN.dcm.T @ Rc_inertial
+    Rc_eci = np.array([x[n], y[n], z[n]])
+    Rc_principal_body = sc.attBN.dcm.T @ Rc_eci
     gTorque = compute_gravity_gradient_torque(
         sc.GM, Rc_principal_body, sc.inertia)
-    mTorque = compute_magnetic_torque_component( current_time,
-                                                 Rc_inertial, sc.attBN )
-    # TODO: add solar rad pressure torque
+    mTorque = compute_magnetic_torque_component(current_time, Rc_eci, sc.attBN)
+    sTorque = compute_solar_torque_component(current_time, Rc_eci, sc.attBN)
     
     # Store the computed perturbation torques
     states_gtorq[:, n] = gTorque
     states_mtorq[:, n] = mTorque
-    # TODO: add solar rad pressure torque
+    states_storq[:, n] = sTorque
     
     # Propagate the attitude and the angular velocity
     sc.propagate_orbit(timestep)
-    sc.propagate_attitude(timestep, torque = gTorque + mTorque)
-    # TODO: add solar rad pressure torque
+    sc.propagate_attitude(timestep, torque = gTorque + mTorque + sTorque)
     
     now += timestep
     n += 1
@@ -319,8 +389,6 @@ for i in range(n_periods + 1):
 
 plt.grid()
 # plt.show()
-
-
 
 # Save the quaternion plot
 plt.savefig(file_path + 'QTR-Pert.png', dpi=200, 
@@ -361,7 +429,26 @@ for i in range(n_periods + 1):
 plt.grid()
 # plt.show()
 
-# Save the gravity gradient plot
+# Save the magnetic moment plot
+plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
+
+# Plot SRP moment torques.
+plt.figure()
+plt.plot( timeAxis[::sampleSkip], states_storq[0,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_storq[1,::sampleSkip] )
+plt.plot( timeAxis[::sampleSkip], states_storq[2,::sampleSkip] )
+plt.xlabel('Simulation time [sec]')
+plt.ylabel('Solar Radiation Pressure Torque in Principal-Body Axis [N m]')
+plt.legend(['$S_x$','$S_y$','$S_z$'])
+
+# Plot the orbital periods as vertical lines.
+for i in range(n_periods + 1):
+    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
+
+plt.grid()
+# plt.show()
+
+# Save the SRP plot
 plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
     
 print("Plotting Euler")
@@ -405,18 +492,18 @@ for i, ax in enumerate(axes2):
 # Save the angular velocity plot
 plt.savefig(file_path + 'Omegas-Pert.png', dpi=200, bbox_inches='tight')
         
-print("Plotting RTN")
-# Plot visualization of RTN orbit
-fig3 = plt.figure(figsize=(10, 10))
-axes3 = fig3.add_subplot(111, projection='3d')
-plot_orbit_and_attitude(axes3,
-                        x[::sampleSkip], 
-                        y[::sampleSkip], 
-                        z[::sampleSkip], 
-                        xyz_sampled, 
-                        dcm_sampled)
+# print("Plotting RTN")
+# # Plot visualization of RTN orbit
+# fig3 = plt.figure(figsize=(10, 10))
+# axes3 = fig3.add_subplot(111, projection='3d')
+# plot_orbit_and_attitude(axes3,
+#                         x[::sampleSkip], 
+#                         y[::sampleSkip], 
+#                         z[::sampleSkip], 
+#                         xyz_sampled, 
+#                         dcm_sampled)
 
-plt.tight_layout()
+# plt.tight_layout()
 
-# Save the RTN plot
-plt.savefig(file_path + 'Orbit-Pert.png', dpi=200, bbox_inches='tight')
+# # Save the RTN plot
+# plt.savefig(file_path + 'Orbit-Pert.png', dpi=200, bbox_inches='tight')
