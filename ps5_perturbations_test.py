@@ -17,6 +17,7 @@ from source.spacecraft import Spacecraft
 from source.attitudes import QTR, MRP
 from source.rotation import dcmX, dcmY, dcmZ
 from source import iau1976
+from source import ephemeris
 
 # ===========================================================================
 
@@ -42,7 +43,7 @@ def compute_gravity_gradient_torque(GM, Rc, inertia):
     return np.array([Mx, My, Mz])
 
 # Computes magnetic moment torques (body). Rc in principal body.
-def compute_magnetic_torque_component(pos_eci, att_body_eci,
+def compute_magnetic_torque_component(t, pos_eci, att_body2eci,
                                       ncoils = 432, A = 0.0556,
                                       I = 1, debug=False):
 
@@ -73,9 +74,9 @@ def compute_magnetic_torque_component(pos_eci, att_body_eci,
     m_hat_Earth_ecef = np.array([m_hat_Earth_x, m_hat_Earth_y, m_hat_Earth_z])
     
     # Earth dipole in ECI. Ignores pole wander (we need ERP files for that)
-    N  = iau1976.nutation( current_time )
-    S  = iau1976.diurnal( current_time, N )
-    P  = iau1976.precession( current_time )
+    N  = iau1976.nutation( t )
+    S  = iau1976.diurnal( t, N )
+    P  = iau1976.precession( t )
     Nt = N.transpose()
     St = S.transpose()
     Pt = P.transpose()
@@ -93,7 +94,7 @@ def compute_magnetic_torque_component(pos_eci, att_body_eci,
     B_vec = (Bconstant) * B_modulation
     
     # Convert B_vec to body frame
-    B_vec_body = att_body_eci.dcm.T @ B_vec
+    B_vec_body = att_body2eci.dcm.T @ B_vec
 
     # Calculate the magnetic moment.
     # Assume satellite dipole moment is in body-frame Z
@@ -255,7 +256,8 @@ while now < duration:
     Rc_principal_body = sc.attBN.dcm.T @ Rc_inertial
     gTorque = compute_gravity_gradient_torque(
         sc.GM, Rc_principal_body, sc.inertia)
-    mTorque = compute_magnetic_torque_component( Rc_inertial, sc.attBN )
+    mTorque = compute_magnetic_torque_component( current_time,
+                                                 Rc_inertial, sc.attBN )
     # TODO: add solar rad pressure torque
     
     # Store the computed perturbation torques
@@ -270,6 +272,9 @@ while now < duration:
     
     now += timestep
     n += 1
+    
+    # Update the actual calendar time
+    current_time = current_time + datetime.timedelta(seconds = timestep)
     
     
 ## ===========================================================================
