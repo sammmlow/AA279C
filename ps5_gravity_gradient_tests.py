@@ -18,6 +18,8 @@ from source.rotation import dcmX, dcmY, dcmZ
 from source.plot_orbit_and_attitude import plot_orbit_and_attitude
 from source.perturbations import compute_gravity_gradient_torque
 
+from plot_everything import plot_everything
+
 # For saving the figures
 file_path = "figures/ps5/PS5-GravityGradient-StabilityTests-"
 
@@ -117,11 +119,9 @@ for r in range(len(all_rotations)):
     sample_trigger_interval = duration / sample_bigstep
 
     # Initialize containers for plotting.
-    x = np.zeros(samples)
-    y = np.zeros(samples)
-    z = np.zeros(samples)
-    xyz_sampled = np.zeros(( 3, samples ))
-    dcm_sampled = np.zeros(( 3, 3, samples ))
+    states_pos   = np.zeros(( 3, samples ))
+    xyz_sampled  = np.zeros(( 3, samples ))
+    dcm_sampled  = np.zeros(( 3, 3, samples ))
     states_omega = np.zeros(( 3, samples ))
     states_angle = np.zeros(( 3, samples ))
     states_quatr = np.zeros(( 4, samples ))
@@ -131,10 +131,10 @@ for r in range(len(all_rotations)):
     nBig = 0
     
     # Make this number bigger to plot faster with fewer points.
-    sampleSkip = 5
+    skip = 5
     # sampleSkip = 40
-    print(f"with skip of {sampleSkip}, number of samples: ", 
-          samples // sampleSkip)
+    print(f"with skip of {skip}, number of samples: ", 
+          samples // skip)
     
     sample_trigger_count = 0.0;
     
@@ -142,9 +142,7 @@ for r in range(len(all_rotations)):
     while now < duration:
         
         # Store the angular velocities and 321 Euler angles
-        x[n] = sc.states[0]
-        y[n] = sc.states[1]
-        z[n] = sc.states[2]
+        states_pos[:, n] = sc.states[0:3]
         states_omega[:, n] = sc.ohmBN
         states_angle[:, n] = sc.attBN.get_euler_angles_321()
         states_quatr[:, n] = sc.attBN.qtr
@@ -156,10 +154,9 @@ for r in range(len(all_rotations)):
             sample_trigger_count += sample_trigger_interval
             nBig += 1
             
-        # Compute gravity gradient torque
-        Rc_inertial = np.array([x[n], y[n], z[n]])
-        Rc = sc.attBN.dcm.T @ Rc_inertial
-        gTorque = compute_gravity_gradient_torque(sc.GM, Rc, sc.inertia)
+        # Compute gravity gradient perturbation torques.
+        gTorque = compute_gravity_gradient_torque(
+            sc.GM, sc.attBN.dcm.T @ sc.states[0:3], sc.inertia)
         
         # Store the computed gravity gradient torque
         states_gtorq[:, n] = gTorque
@@ -171,108 +168,9 @@ for r in range(len(all_rotations)):
         
         now += timestep
         n += 1
-        
-    # Plot quaternions.
-    plt.figure()
-    plt.plot( timeAxis[::sampleSkip], states_quatr[0,::sampleSkip] )
-    plt.plot( timeAxis[::sampleSkip], states_quatr[1,::sampleSkip] )
-    plt.plot( timeAxis[::sampleSkip], states_quatr[2,::sampleSkip] )
-    plt.plot( timeAxis[::sampleSkip], states_quatr[3,::sampleSkip] )
-    plt.xlabel('Simulation time [sec]')
-    plt.ylabel('Body-to-Inertial Quaternions')
-    plt.legend(['q0','q1','q2','q3'])
-    
-    # Plot the orbital periods as vertical lines.
-    for i in range(n_periods + 1):
-        plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-    
-    plt.grid()
-    # plt.show()
-    
-    
-    
-    # Save the quaternion plot
-    plt.savefig(file_path + 'QTR-Config' + str(r+1) + '.png', dpi=200, 
-                bbox_inches='tight')
-    
-    # Plot gravity gradients.
-    plt.figure()
-    plt.plot( timeAxis[::sampleSkip], states_gtorq[0,::sampleSkip] )
-    plt.plot( timeAxis[::sampleSkip], states_gtorq[1,::sampleSkip] )
-    plt.plot( timeAxis[::sampleSkip], states_gtorq[2,::sampleSkip] )
-    plt.xlabel('Simulation time [sec]')
-    plt.ylabel('Gravity Gradient Torque in Principal-Body Axis [N m]')
-    plt.legend(['$M_x$','$M_y$','$M_z$'])
-    
-    # Plot the orbital periods as vertical lines.
-    for i in range(n_periods + 1):
-        plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-    
-    plt.grid()
-    # plt.show()
-    
-    # Save the gravity gradient plot
-    plt.savefig(file_path + 'Torque-Config' + str(r+1) + '.png', dpi=200,
-                bbox_inches='tight')
-        
-    print("Plotting Euler")
-    
-    # Plot Euler angles.
-    fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
-    labels = ['Roll \u03C6', 'Pitch \u03B8', 'Yaw \u03C8']  # psi, theta, phi
-    for i, ax in enumerate(axes1):
-        ax.plot( timeAxis[::sampleSkip], states_angle[i,::sampleSkip] * 57.3 )
-        ax.set_ylabel(labels[i] + ' [deg]')
-        ax.set_ylim(-200, 200)
-        ax.axhline(-180, color='gray', linestyle='--')
-        ax.axhline( 180, color='gray', linestyle='--')
-        ax.grid(True)
-        if i == 2:
-            ax.set_xlabel('Time [seconds]')
-        
-        # Plot the orbital periods as vertical lines.
-        for i in range(n_periods + 1):
-            ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
-    
-    # Save the Euler angle plot
-    plt.savefig(file_path + 'Angles-Config' + str(r+1) + '.png', dpi=200,
-                bbox_inches='tight')
-    
-    print("Plotting angular velocities")
-    
-    # Plot angular velocities.
-    fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
-    labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
-    for i, ax in enumerate(axes2):
-        ax.plot( timeAxis[::sampleSkip], states_omega[i,::sampleSkip] )
-        ax.set_ylabel(labels[i] + ' [rad/s]')
-        ax.grid(True)
-        if i == 2:
-            ax.set_xlabel('Time [seconds]')
-            
-        # Plot the orbital periods as vertical lines.
-        for i in range(n_periods + 1):
-            ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
-    
-    # Save the angular velocity plot
-    plt.savefig(file_path + 'Omegas-Config' + str(r+1) + '.png', dpi=200,
-                bbox_inches='tight')
-            
-    print("Plotting RTN")
-    # Plot visualization of RTN orbit
-    fig3 = plt.figure(figsize=(10, 10))
-    axes3 = fig3.add_subplot(111, projection='3d')
-    plot_orbit_and_attitude(axes3,
-                            x[::sampleSkip], 
-                            y[::sampleSkip], 
-                            z[::sampleSkip], 
-                            xyz_sampled, 
-                            dcm_sampled)
-    
-    plt.tight_layout()
-    
-    # Save the RTN plot
-    plt.savefig(file_path + 'Orbit-Config' + str(r+1) + '.png', dpi=200,
-                bbox_inches='tight')
 
-    plt.close("all")
+empty = np.array([])
+plot_everything( timeAxis, skip, one_orbital_period, n_periods, file_path,
+                 states_quatr, states_gtorq, empty,
+                 empty, states_angle, states_omega,
+                 states_pos, xyz_sampled, dcm_sampled )

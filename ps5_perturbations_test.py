@@ -17,6 +17,8 @@ from source.spacecraft import Spacecraft
 from source.attitudes import QTR, MRP
 from source.plot_orbit_and_attitude import plot_orbit_and_attitude
 
+from plot_everything import plot_everything
+
 # ===========================================================================
 
 # For saving the figures
@@ -60,26 +62,24 @@ sample_bigstep = 11
 sample_trigger_interval = duration / sample_bigstep
 
 # Initialize containers for plotting.
-x = np.zeros(samples)
-y = np.zeros(samples)
-z = np.zeros(samples)
-xyz_sampled = np.zeros(( 3, samples ))
-dcm_sampled = np.zeros(( 3, 3, samples ))
+states_pos   = np.zeros(( 3, samples ))
 states_omega = np.zeros(( 3, samples ))
 states_angle = np.zeros(( 3, samples ))
 states_quatr = np.zeros(( 4, samples ))
 states_gtorq = np.zeros(( 3, samples ))
 states_mtorq = np.zeros(( 3, samples ))
 states_storq = np.zeros(( 3, samples ))
+states_pos_sampled = np.zeros(( 3, samples ))
+states_dcm_sampled = np.zeros(( 3, 3, samples ))
 
 # Just a counter for plotting the number of attitude triads in the 3D plot.
 nBig = 0
 
 # Make this number bigger to plot faster with fewer points.
-sampleSkip = 5
+skip = 5
 # sampleSkip = 40
-print(f"with skip of {sampleSkip}, number of samples: ", 
-      samples // sampleSkip)
+print(f"with skip of {skip}, number of samples: ", 
+      samples // skip)
 
 sample_trigger_count = 0.0;
 
@@ -87,32 +87,29 @@ sample_trigger_count = 0.0;
 while now < duration:
     
     # Store the angular velocities and 321 Euler angles
-    x[n] = sc.states[0]
-    y[n] = sc.states[1]
-    z[n] = sc.states[2]
+    states_pos[:, n] = sc.states[0:3]
     states_omega[:, n] = sc.ohmBN
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
     states_quatr[:, n] = sc.attBN.qtr
     
     # Fragile code. Will not work if time step skips this.
     if (now >= sample_trigger_count):
-        xyz_sampled[:, nBig] = sc.states[0:3]
-        dcm_sampled[:, :, nBig] = sc.attBN.dcm
+        states_pos_sampled[:, nBig] = sc.states[0:3]
+        states_dcm_sampled[:, :, nBig] = sc.attBN.dcm
         sample_trigger_count += sample_trigger_interval
         nBig += 1
         
-    # Compute gravity gradient torque
-    Rc_eci = np.array([x[n], y[n], z[n]])
-    Rc_principal_body = sc.attBN.dcm.T @ Rc_eci
-    
+    # Compute gravity gradient perturbation torques.
     gTorque = perturbations.compute_gravity_gradient_torque(
-        sc.GM, Rc_principal_body, sc.inertia)
+        sc.GM, sc.attBN.dcm.T @ sc.states[0:3], sc.inertia)
     
+    # Compute magnetic field perturbation torques.
     mTorque = perturbations.compute_magnetic_torque_component(
-        current_time, Rc_eci, sc.attBN)
+        current_time, sc.states[0:3], sc.attBN)
     
+    # Compute solar radiation pressure perturbation torques.
     sTorque = perturbations.compute_solar_torque_component(
-        current_time, Rc_eci, sc.attBN)
+        current_time, sc.states[0:3], sc.attBN)
     
     # Store the computed perturbation torques
     states_gtorq[:, n] = gTorque
@@ -134,158 +131,7 @@ while now < duration:
 ## PLOTTING STUFF! KEEP YOUR EYES AWAY!
 ## ===========================================================================
     
-# Plot quaternions.
-plt.figure()
-plt.plot( timeAxis[::sampleSkip], states_quatr[0,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_quatr[1,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_quatr[2,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_quatr[3,::sampleSkip] )
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Body-to-Inertial Quaternions')
-plt.legend(['q0','q1','q2','q3'])
-
-# Plot the orbital periods as vertical lines.
-for i in range(n_periods + 1):
-    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-plt.grid()
-plt.show()
-
-# Save the quaternion plot
-plt.savefig(file_path + 'QTR-Pert.png', dpi=200, bbox_inches='tight')
-
-print("Plotting torque: gravity gradient")
-
-max_grav_grad = 21.1e-6 # N m
-
-# Plot gravity gradients.
-plt.figure()
-plt.plot( timeAxis[::sampleSkip], states_gtorq[0,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_gtorq[1,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_gtorq[2,::sampleSkip] )
-plt.hlines( max_grav_grad, timeAxis[0], timeAxis[-1], colors='r')
-plt.hlines(-max_grav_grad, timeAxis[0], timeAxis[-1], colors='r')
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Gravity Gradient Torque in Principal-Body Axis [N m]')
-plt.legend(['$G_x$','$G_y$','$G_z$','Max'])
-
-# Plot the orbital periods as vertical lines.
-for i in range(n_periods + 1):
-    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-plt.grid()
-plt.show()
-
-# Save the gravity gradient plot
-plt.savefig(file_path + 'gTorque-Pert.png', dpi=200, bbox_inches='tight')
-
-print("Plotting torque: magnetic")
-
-max_mag_torque = 4.9e-6 # N m
-
-# Plot magnetic moment torques.
-plt.figure()
-plt.plot( timeAxis[::sampleSkip], states_mtorq[0,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_mtorq[1,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_mtorq[2,::sampleSkip] )
-plt.hlines( max_mag_torque, timeAxis[0], timeAxis[-1], colors='r')
-plt.hlines(-max_mag_torque, timeAxis[0], timeAxis[-1], colors='r')
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Magnetic Moment Torque in Principal-Body Axis [N m]')
-plt.legend(['$M_x$','$M_y$','$M_z$','Max'])
-
-# Plot the orbital periods as vertical lines.
-for i in range(n_periods + 1):
-    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-plt.grid()
-plt.show()
-
-# Save the magnetic moment plot
-plt.savefig(file_path + 'mTorque-Pert.png', dpi=200, bbox_inches='tight')
-
-print("Plotting torque: SRP")
-
-max_srp_torque = 96.6e-6 # N m
-
-# Plot SRP moment torques.
-plt.figure()
-plt.plot( timeAxis[::sampleSkip], states_storq[0,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_storq[1,::sampleSkip] )
-plt.plot( timeAxis[::sampleSkip], states_storq[2,::sampleSkip] )
-plt.hlines( max_srp_torque, timeAxis[0], timeAxis[-1], colors='r')
-plt.hlines(-max_srp_torque, timeAxis[0], timeAxis[-1], colors='r')
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Solar Radiation Pressure Torque in Principal-Body Axis [N m]')
-plt.legend(['$S_x$','$S_y$','$S_z$','Max'])
-
-# Plot the orbital periods as vertical lines.
-for i in range(n_periods + 1):
-    plt.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-plt.grid()
-plt.show()
-
-# Save the SRP plot
-plt.savefig(file_path + 'sTorque-Pert.png', dpi=200, bbox_inches='tight')
-    
-print("Plotting Euler")
-
-# Plot Euler angles.
-fig1, axes1 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
-labels = ['Roll \u03C6', 'Pitch \u03B8', 'Yaw \u03C8']  # psi, theta, phi
-for i, ax in enumerate(axes1):
-    ax.plot( timeAxis[::sampleSkip], states_angle[i,::sampleSkip] * 57.3 )
-    ax.set_ylabel(labels[i] + ' [deg]')
-    ax.set_ylim(-200, 200)
-    ax.axhline(-180, color='gray', linestyle='--')
-    ax.axhline( 180, color='gray', linestyle='--')
-    ax.grid(True)
-    if i == 2:
-        ax.set_xlabel('Time [seconds]')
-    
-    # Plot the orbital periods as vertical lines.
-    for i in range(n_periods + 1):
-        ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-plt.show()
-
-# Save the Euler angle plot
-plt.savefig(file_path + 'Angles-Pert.png', dpi=200, bbox_inches='tight')
-
-print("Plotting angular velocities")
-
-# Plot angular velocities.
-fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
-labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
-for i, ax in enumerate(axes2):
-    ax.plot( timeAxis[::sampleSkip], states_omega[i,::sampleSkip] )
-    ax.set_ylabel(labels[i] + ' [rad/s]')
-    ax.grid(True)
-    if i == 2:
-        ax.set_xlabel('Time [seconds]')
-        
-    # Plot the orbital periods as vertical lines.
-    for i in range(n_periods + 1):
-        ax.axvline(i * one_orbital_period, color='gray', linestyle='--')
-
-# Save the angular velocity plot
-plt.savefig(file_path + 'Omegas-Pert.png', dpi=200, bbox_inches='tight')
-
-plt.show()
-
-print("Plotting RTN")
-# Plot visualization of RTN orbit
-fig3 = plt.figure(figsize=(10, 10))
-axes3 = fig3.add_subplot(111, projection='3d')
-plot_orbit_and_attitude(axes3,
-                        x[::sampleSkip], 
-                        y[::sampleSkip], 
-                        z[::sampleSkip], 
-                        xyz_sampled, 
-                        dcm_sampled)
-
-plt.tight_layout()
-
-# Save the RTN plot
-plt.savefig(file_path + 'Orbit-Pert.png', dpi=200, bbox_inches='tight')
+plot_everything( timeAxis, skip, one_orbital_period, n_periods, file_path,
+                     states_quatr, states_gtorq, states_mtorq,
+                     states_storq, states_angle, states_omega,
+                     states_pos, states_pos_sampled, states_dcm_sampled )
