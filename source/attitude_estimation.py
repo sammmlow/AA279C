@@ -113,7 +113,8 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
         pass
 
     def estimate(self, measurements: np.ndarray,
-                 model: np.ndarray) -> np.ndarray:
+                 model: np.ndarray,
+                 hard_check_rot: bool = False) -> np.ndarray:
         """
         Estimate the attitude of the spacecraft given a collection of direction
         measurements.
@@ -133,6 +134,9 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
             A 3xN array of direction measurements. (body frame)
         model : np.array
             A 3xN array of model directions. (inertial frame)
+        hard_check_rot : bool
+            Call assert to check if the rotation matrix is a rotation matrix.
+            Otherwise, will not check.
 
         Returns
         -------
@@ -158,10 +162,11 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
         # Calculate the rotation matrix
         rot = measurements @ v_pinv
 
-        # Check that the rotation matrix is orthogonal
-        is_rotation_matrix = check_rotation_matrix(rot)
-        assert is_rotation_matrix, \
-            "The rotation matrix is not a rotation matrix." + \
-            f" The matrix is \n{rot}"
+        if hard_check_rot:
+            # Check that the rotation matrix is orthogonal
+            is_rotation_matrix = check_rotation_matrix(rot)
+            assert is_rotation_matrix, \
+                "The rotation matrix is not a rotation matrix." + \
+                f" The matrix is \n{rot}"
 
         return rot

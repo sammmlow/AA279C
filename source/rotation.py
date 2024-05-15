@@ -28,7 +28,7 @@ import numpy as np
 
 def dcmX(t):
     '''Generate the direction cosine matrix for an X-axis rotation of angle t.
-    
+
     Parameters
     ----------
     t : float
@@ -38,9 +38,9 @@ def dcmX(t):
     -------
     dcm : numpy.ndarray
         Numpy 3x3 direction cosine matrix.
-    
+
     '''
-    
+
     dcm = np.array([[ 1.0,    0.0,         0.0         ],
                     [ 0.0,    math.cos(t), math.sin(t) ],
                     [ 0.0, -1*math.sin(t), math.cos(t) ]])
@@ -51,7 +51,7 @@ def dcmX(t):
 
 def dcmY(t):
     '''Generate the direction cosine matrix for an Y-axis rotation of angle t.
-    
+
     Parameters
     ----------
     t : float
@@ -61,20 +61,20 @@ def dcmY(t):
     -------
     dcm : numpy.ndarray
         Numpy 3x3 direction cosine matrix.
-    
+
     '''
-    
+
     dcm = np.array([[ math.cos(t), 0.0, -1*math.sin(t) ],
                     [ 0.0,         1.0,    0.0         ],
                     [ math.sin(t), 0.0,    math.cos(t) ]])
-    
+
     return dcm
 
 
 
 def dcmZ(t):
     '''Generate the direction cosine matrix for an Z-axis rotation of angle t.
-    
+
     Parameters
     ----------
     t : float
@@ -84,11 +84,11 @@ def dcmZ(t):
     -------
     dcm : numpy.ndarray
         Numpy 3x3 direction cosine matrix.
-    
+
     '''
-    
+
     dcm = np.array([[    math.cos(t), math.sin(t), 0.0 ],
                     [ -1*math.sin(t), math.cos(t), 0.0 ],
                     [    0.0,         0.0,         1.0 ]])
-    
+
     return dcm
