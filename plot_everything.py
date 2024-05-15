@@ -2,6 +2,7 @@
 
 # Script for us to just plot everything. Can append new plots here,
 
+import numpy as np
 import matplotlib.pyplot as plt
 from source.plot_orbit_and_attitude import plot_orbit_and_attitude
 
@@ -9,26 +10,29 @@ from source.plot_orbit_and_attitude import plot_orbit_and_attitude
 # The 3D plotting significantly slows down the plotting code. Set parameter
 # `plot_orbit_bool` to True if you need to plot 3D orbits.
 
+empty = np.array([])
+
 def plot_everything( timeAxis, skip, period, number_of_periods, file_path,  
                      states_quatr, states_gtorq, states_mtorq,
                      states_storq, states_angle, states_omega,
                      states_pos, states_pos_sampled, states_dcm_sampled,
+                     states_quatr_ref = empty, states_omega_ref = empty,
                      plot_orbit_bool = False ):
     
     # ========================================================================
-    # Plot quaternions.
+    # Plot body-to-inertial quaternions.
     # ========================================================================
     
     if (states_quatr.size != 0):
         
-        print("Plotting quaternions:")
+        print("Plotting BN quaternions: body-to-inertial")
         plt.figure()
         plt.plot( timeAxis[::skip], states_quatr[0,::skip] )
         plt.plot( timeAxis[::skip], states_quatr[1,::skip] )
         plt.plot( timeAxis[::skip], states_quatr[2,::skip] )
         plt.plot( timeAxis[::skip], states_quatr[3,::skip] )
         plt.xlabel('Simulation time [sec]')
-        plt.ylabel('Body-to-Inertial Quaternions')
+        plt.ylabel('Quaternions (BN)')
         plt.legend(['q0','q1','q2','q3'])
     
         # Plot the orbital periods as vertical lines.
@@ -37,7 +41,31 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
     
         plt.grid()
         plt.show()
-        plt.savefig(file_path + 'QTR.png', dpi=200, bbox_inches='tight')
+        plt.savefig(file_path + 'QTR-BN.png', dpi=200, bbox_inches='tight')
+        
+    # ========================================================================
+    # Plot body-to-reference quaternions.
+    # ========================================================================
+    
+    if (states_quatr.size != 0):
+        
+        print("Plotting BR quaternions: body-to-reference")
+        plt.figure()
+        plt.plot( timeAxis[::skip], states_quatr_ref[0,::skip] )
+        plt.plot( timeAxis[::skip], states_quatr_ref[1,::skip] )
+        plt.plot( timeAxis[::skip], states_quatr_ref[2,::skip] )
+        plt.plot( timeAxis[::skip], states_quatr_ref[3,::skip] )
+        plt.xlabel('Simulation time [sec]')
+        plt.ylabel('Quaternions (BR)')
+        plt.legend(['q0','q1','q2','q3'])
+    
+        # Plot the orbital periods as vertical lines.
+        for i in range(number_of_periods + 1):
+            plt.axvline(i * period, color='gray', linestyle='--')
+    
+        plt.grid()
+        plt.show()
+        plt.savefig(file_path + 'QTR-BR.png', dpi=200, bbox_inches='tight')
     
     # ========================================================================
     # Plot gravity gradient torques
@@ -144,24 +172,44 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
         plt.savefig(file_path + 'Angles.png', dpi=200, bbox_inches='tight')
     
     # ========================================================================
-    # Plot angular velocities in body-frame coordinates
+    # Plot body-to-inertial angular velocities in body-frame coordinates
     # ========================================================================
     
-    if (states_angle.size != 0):
+    if (states_omega.size != 0):
         
-        print("Plotting angular velocities (body-frame)")
-        fig2, axes2 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
+        print("Plotting BN angular velocities (body-frame)")
+        fig2a, axes2a = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
         labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
-        for i, ax in enumerate(axes2):
+        for i, ax in enumerate(axes2a):
             ax.plot( timeAxis[::skip], states_omega[i,::skip] )
-            ax.set_ylabel(labels[i] + ' [rad/s]')
+            ax.set_ylabel(labels[i] + '(BN) [rad/s]')
             ax.grid(True)
             if i == 2:
                 ax.set_xlabel('Time [seconds]')
             for i in range(number_of_periods + 1):
                 ax.axvline(i * period, color='gray', linestyle='--')
         plt.show()
-        plt.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
+        plt.savefig(file_path + 'OmegaBN.png', dpi=200, bbox_inches='tight')
+        
+    # ========================================================================
+    # Plot body-to-reference angular velocities in body-frame coordinates
+    # ========================================================================
+    
+    if (states_omega_ref.size != 0):
+        
+        print("Plotting BR angular velocities (body-frame)")
+        fig2b, axes2b = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
+        labels = [r'$\omega_{x}$', r'$\omega_{y}$', r'$\omega_{z}$']
+        for i, ax in enumerate(axes2b):
+            ax.plot( timeAxis[::skip], states_omega_ref[i,::skip] )
+            ax.set_ylabel(labels[i] + '(BR) [rad/s]')
+            ax.grid(True)
+            if i == 2:
+                ax.set_xlabel('Time [seconds]')
+            for i in range(number_of_periods + 1):
+                ax.axvline(i * period, color='gray', linestyle='--')
+        plt.show()
+        plt.savefig(file_path + 'OmegaBR.png', dpi=200, bbox_inches='tight')
     
     # ========================================================================
     # Final: Plot orbit and attitude triads in 3D (slow!)
