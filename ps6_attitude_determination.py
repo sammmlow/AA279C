@@ -80,30 +80,55 @@ def ex_c_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
         "The sensor data must be a 3x2 array," + \
         f" but is shape {sensor_data.shape}."
 
-    # Reference data
-    # First vector is along the desired axis
-    if ref_axis == 'x':
-        ref_vec1 = np.array([1, 0, 0])
-        dcm_func = rotation.dcmZ
-    elif ref_axis == 'y':
-        ref_vec1 = np.array([0, 1, 0])
-        dcm_func = rotation.dcmX
-    elif ref_axis == 'z':
-        ref_vec1 = np.array([0, 0, 1])
-        dcm_func = rotation.dcmY
-    else:
-        raise ValueError(f'Invalid rotation axis. Given: {ref_axis}')
+    # # Reference data
+    # # First vector is along the desired axis
+    # if ref_axis == 'x':
+    #     ref_vec1 = np.array([1, 0, 0])
+    #     dcm_func = rotation.dcmZ
+    # elif ref_axis == 'y':
+    #     ref_vec1 = np.array([0, 1, 0])
+    #     dcm_func = rotation.dcmX
+    # elif ref_axis == 'z':
+    #     ref_vec1 = np.array([0, 0, 1])
+    #     dcm_func = rotation.dcmY
+    # else:
+    #     raise ValueError(f'Invalid rotation axis. Given: {ref_axis}')
 
-    # Second vector is an angle away from the first vector that matches
-    # the angle between the two random vectors (vec1 and vec2).
-    # This is to make the reference data match the model data.
-    ref_vec2 = dcm_func(np.arccos(cos_angle)) @ ref_vec1
+    # # Second vector is an angle away from the first vector that matches
+    # # the angle between the two random vectors (vec1 and vec2).
+    # # This is to make the reference data match the model data.
+    # angle_to_rotate = np.arccos(cos_angle)
+    # print(f"Angle between the vectors: {angle_to_rotate} (rad)")
+    # print(f"Angle between the vectors: {angle_to_rotate*180/np.pi} (deg)")
+    # ref_vec2 = dcm_func(angle_to_rotate) @ ref_vec1
 
-    model_data = np.array([ref_vec1, ref_vec2]).T
-    # Check the size
-    assert model_data.shape == (3, 2), \
-        "The sensor data must be a 3x2 array," + \
-        f" but is shape {model_data.shape}."
+    # model_data = np.array([ref_vec1, ref_vec2]).T
+    # # Check the size
+    # assert model_data.shape == (3, 2), \
+    #     "The sensor data must be a 3x2 array," + \
+    #     f" but is shape {model_data.shape}."
+
+    # # Check that the dot product is the same
+    # print("Dot products:")
+    # print(np.dot(sensor_data[:, 0], sensor_data[:, 1]))
+    # print(np.dot(model_data[:, 0], model_data[:, 1]))
+    # assert np.abs(np.dot(sensor_data[:, 0], sensor_data[:, 1]) - \
+    #               np.dot(model_data[:, 0], model_data[:, 1])) < 1e-10, \
+    #     "The dot product of the sensor data and model data are not the same."
+
+    # print("Sensor data:")
+    # print(sensor_data)
+    # print("Model data:")
+    # print(model_data)
+    # print()
+
+    # Try just rotating the sensor data to match the model data
+    sensor_to_model = rotation.dcmZ(np.pi/2)
+    print()
+    print("Sensor to model DCM:")
+    print(sensor_to_model)
+
+    model_data = sensor_to_model @ sensor_data
 
     return sensor_data, model_data
 

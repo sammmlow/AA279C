@@ -99,6 +99,9 @@ class AttitudeEstimator:
 
         total_error = np.linalg.norm(measurements - predicted_measurements)
 
+        print(f"Predicted Measurements: \n{predicted_measurements}")
+        print(f"Measurements: \n{measurements}")
+
         return measurement_wise_error, total_error
 
 
