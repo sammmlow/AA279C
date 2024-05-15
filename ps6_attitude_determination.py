@@ -47,13 +47,72 @@ def ex_b_data_orthogonal_with_noise(rot_axis, rot_angle, noise_std=0.1):
     return rot_data, model_data
 
 
-def run_example(sensor_data, model_data):
+def ex_c_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
+    """
+    Two measurements that are not orthogonal.
+    """
+    # Set the random seed
+    np.random.seed(rng_seed)
+
+    # Generate two random vectors
+    vec1 = np.random.rand(3)
+    vec1 /= np.linalg.norm(vec1)
+
+    # Generate until the second vector is at least cos_angle_limit
+    # away from the first vector and at least cos_angle_limit away
+    # from being orthogonal to the first vector.
+    while True:
+        vec2 = np.random.rand(3)
+        # Normalize the vectors
+        vec2 /= np.linalg.norm(vec2)
+
+        # Check the angle between the vectors
+        cos_angle = np.dot(vec1, vec2)
+        if (np.abs(cos_angle) > cos_angle_limit) and \
+            (np.abs(cos_angle) < 1-cos_angle_limit):
+            break
+
+    # Sensor data
+    sensor_data = np.array([vec1, vec2]).T
+
+    # Check the size
+    assert sensor_data.shape == (3, 2), \
+        "The sensor data must be a 3x2 array," + \
+        f" but is shape {sensor_data.shape}."
+
+    # Reference data
+    # First vector is along the desired axis
+    if ref_axis == 'x':
+        ref_vec1 = np.array([1, 0, 0])
+        dcm_func = rotation.dcmZ
+    elif ref_axis == 'y':
+        ref_vec1 = np.array([0, 1, 0])
+        dcm_func = rotation.dcmX
+    elif ref_axis == 'z':
+        ref_vec1 = np.array([0, 0, 1])
+        dcm_func = rotation.dcmY
+    else:
+        raise ValueError(f'Invalid rotation axis. Given: {ref_axis}')
+
+    # Second vector is an angle away from the first vector that matches
+    # the angle between the two random vectors (vec1 and vec2).
+    # This is to make the reference data match the model data.
+    ref_vec2 = dcm_func(np.arccos(cos_angle)) @ ref_vec1
+
+    model_data = np.array([ref_vec1, ref_vec2]).T
+    # Check the size
+    assert model_data.shape == (3, 2), \
+        "The sensor data must be a 3x2 array," + \
+        f" but is shape {model_data.shape}."
+
+    return sensor_data, model_data
+
+
+
+def run_example(estimator, sensor_data, model_data):
     """
     Run all the examples
     """
-    # Initialize attitude estimation module
-    estimator = att_est.DeterministicAttitudeEstimator()
-
     # Estimate attitude
     attitude = estimator.estimate(sensor_data, model_data)
 
@@ -94,23 +153,63 @@ if __name__ == "__main__":
         ('ex_b', 'z', np.pi, 0.001),
         ('ex_b', 'x', np.pi/2, 0.1),
         ('ex_b', 'y', np.pi/4, 0.1),
-        ('ex_b', 'z', np.pi, 0.1)
+        ('ex_b', 'z', np.pi, 0.1),
+        ('ex_c', 'x', 0, 0.1, True),
+        ('ex_c', 'y', 0, 0.1, True),
+        ('ex_c', 'z', 0, 0.1, True),
+        ('ex_c', 'x', 0, 0.1, False),
+        ('ex_c', 'y', 0, 0.1, False),
+        ('ex_c', 'z', 0, 0.1, False)
     ]
 
     for s_ind, scenario in enumerate(scenarios):
         if scenario[0] == 'ex_a':
             _, sc_rot_axis, sc_rot_angle = scenario
-            print_example_header(s_ind+1, "Orthogonal measurements")
+            print_example_header(s_ind+1,
+                                 f"Orthogonal measurements in {sc_rot_axis}")
+
+            # Instantiate the estimator
+            estimator_under_test = att_est.DeterministicAttitudeEstimator()
+
+            # Get the data
             sense_data, ref_data = ex_a_data_orthogonal(
                 sc_rot_axis, sc_rot_angle)
-            run_example(sense_data, ref_data)
+
+            # Run the example
+            run_example(estimator_under_test, sense_data, ref_data)
 
         elif scenario[0] == 'ex_b':
             _, sc_rot_axis, sc_rot_angle, sc_noise_std = scenario
-            print_example_header(s_ind+1, "Orthogonal measurements with noise")
+            print_example_header(s_ind+1,
+                f"Orthogonal measurements in {sc_rot_axis} with noise {sc_noise_std}")
+
+            # Instantiate the estimator
+            estimator_under_test = att_est.DeterministicAttitudeEstimator()
+
+            # Get the data
             sense_data, ref_data = ex_b_data_orthogonal_with_noise(
                 sc_rot_axis, sc_rot_angle, sc_noise_std)
-            run_example(sense_data, ref_data)
+
+            # Run the example
+            run_example(estimator_under_test, sense_data, ref_data)
+
+        elif scenario[0] == 'ex_c':
+            _, sc_ref_axis, sc_rng, sc_cos_angle_limit, sc_use_det = scenario
+            print_example_header(s_ind+1,
+                f"Two measurements in {sc_ref_axis}, using Det Att? {sc_use_det}")
+
+            # Instantiate the estimator
+            estimator_under_test = \
+                att_est.DegenerateDeterminisitcAttitudeEstimator(
+                    use_det_att=sc_use_det)
+
+            # Get the data
+            sense_data, ref_data = ex_c_data_two_measure(
+                sc_ref_axis, rng_seed=sc_rng,
+                cos_angle_limit=sc_cos_angle_limit)
+
+            # Run the example
+            run_example(estimator_under_test, sense_data, ref_data)
 
         else:
             raise ValueError(f"Invalid scenario: {scenario}")

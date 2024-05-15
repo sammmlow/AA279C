@@ -170,3 +170,103 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
                 f" The matrix is \n{rot}"
 
         return rot
+
+
+class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
+    """
+    Special estimator for when there are only two measurements.
+    """
+    def __init__(self,
+                 use_det_att: bool = True):
+        self.det_att_estimator = DeterministicAttitudeEstimator()
+        self.use_det_att = use_det_att
+
+    def estimate(self,
+                 measurements: np.ndarray,
+                 model: np.ndarray,
+                 hard_check_rot: bool = False) -> np.ndarray:
+        """
+        Create three meausrements from two measurements and call the
+        DeterministicAttitudeEstimator.
+
+        Parameters
+        ----------
+        measurements : np.array
+            A 3x2 array of direction measurements. (body frame)
+        model : np.array
+            A 3x2 array of model directions. (inertial frame)
+        hard_check_rot : bool
+            Call assert to check if the rotation matrix is a rotation matrix.
+            Otherwise, will not check.
+
+        Returns
+        -------
+        np.array
+            The 3x3 rotation matrix from model (i.e., inertial) frame to
+            measurement (i.e., body) frame.
+        """
+        # Check the shape of the measurements and model
+        # Both must be 3x2 arrays
+        assert measurements.shape == (3, 2), \
+            "The measurements must be a 3x2 array," + \
+            f" but is shape {measurements.shape}."
+        assert model.shape == (3, 2), \
+            f"The model must be a 3x2 array, but is shape {model.shape}."
+
+        meas0 = measurements[:, 0]
+        meas1 = measurements[:, 1]
+
+        # The first is still the same
+        p0 = meas0
+        # The second is the cross product of the m0 and m1
+        # so that p1 is orthogonal to p0
+        p1 = np.cross(meas0, meas1)
+        p1 /= np.linalg.norm(p1) # Normalize
+        # The third is the cross product of the first two
+        # so that p2 is orthogonal to p0 and p1
+        p2 = np.cross(p0, p1)
+        p2 /= np.linalg.norm(p2) # Normalize (though it should be already)
+        measurements_triad = np.array([p0, p1, p2])
+
+        # Repeat for the model
+        model0 = model[:, 0]
+        model1 = model[:, 1]
+        v0 = model0
+        v1 = np.cross(model0, model1)
+        v1 /= np.linalg.norm(v1)
+        v2 = np.cross(v0, v1)
+        v2 /= np.linalg.norm(v2)
+        model_triad = np.array([v0, v1, v2])
+
+
+        # Check the size
+        assert measurements_triad.shape == (3, 3), \
+            "The triad measurements must be a 3x3 array," + \
+            f" but is shape {measurements_triad.shape}."
+
+        if self.use_det_att:
+            print("Using the DeterministicAttitudeEstimator")
+            # Use the DeterministicAttitudeEstimator to estimate the attitude
+            rot = self.det_att_estimator.estimate(
+                measurements_triad, model_triad,
+                hard_check_rot=hard_check_rot)
+
+        else:
+            print("Using the Transpose method")
+            # Use that the triad is a rotation matrix (inverse is transpose)
+            # Check that the triad is a rotation matrix
+            is_rotation_matrix = check_rotation_matrix(measurements_triad)
+            assert is_rotation_matrix, \
+                "The triad is not a rotation matrix." + \
+                f" The matrix is \n{measurements_triad}"
+
+            is_rotation_matrix = check_rotation_matrix(model_triad)
+            assert is_rotation_matrix, \
+                "The triad is not a rotation matrix." + \
+                f" The matrix is \n{model_triad}"
+
+            # Again, we have that M = R * V
+            # So, R = M * V^-1 = M * V^T
+            rot = measurements_triad @ model_triad.T
+
+        return rot
