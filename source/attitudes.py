@@ -485,22 +485,22 @@ class MRP:
     # Self should be the parent rotation (mP), and summand is the child (mC).
     # mF = mP * mC ---> mP is applied first, then mC second.
     def __mul__(self, summand):
-        mC, mP = self.mrp, summand.mrp
+        mP, mC = self.mrp, summand.mrp
         mCx = 1.0 - np.dot(mC,mC)
         mPx = 1.0 - np.dot(mP,mP)
-        mrpi = (mCx * mP) + (mPx * mC) - 2 * np.cross(mP,mC)
-        mrpi = mrpi / (1+(np.dot(mC,mC) * np.dot(mP,mP)) - (2*np.dot(mC,mP)))
+        mrpi = (mPx * mC) + (mCx * mP) - 2 * np.cross(mC,mP)
+        mrpi = mrpi / (1+(np.dot(mP,mP) * np.dot(mC,mC)) - (2*np.dot(mP,mC)))
         return MRP(mrp=mrpi)
     
     # MRP quotient. Note that the MRP quotient is not commutative!
     # Self should be the parent rotation (mP), and minuend is the child (mC).
     # mF = mP / mC ---> mP is applied first, then mC inverse is second.  
     def __truediv__(self, minuend):
-        mC, mP = self.mrp, minuend.mrp
+        mP, mC = self.mrp, minuend.mrp
         mCx = 1.0 - np.dot(mC,mC)
         mPx = 1.0 - np.dot(mP,mP)
-        mrpi = (mPx * mC) - (mCx * mP) + 2 * np.cross(mP,mC)
-        mrpi = mrpi / (1+(np.dot(mC,mC) * np.dot(mP,mP)) + (2*np.dot(mC,mP)))
+        mrpi = (mCx * mP) - (mPx * mC) + 2 * np.cross(mC,mP)
+        mrpi = mrpi / (1+(np.dot(mP,mP) * np.dot(mC,mC)) + (2*np.dot(mP,mC)))
         return MRP(mrp=mrpi)
     
     # String ID.
