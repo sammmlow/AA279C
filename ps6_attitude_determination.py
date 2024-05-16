@@ -47,7 +47,46 @@ def ex_b_data_orthogonal_with_noise(rot_axis, rot_angle, noise_std=0.1):
     return rot_data, model_data
 
 
-def ex_c_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
+def ex_c_data_noisy_not_orthogonal(rot_axis, rot_angle, noise_std=0.1,
+                                   num_measure=10, rng_seed=0):
+    """
+    Get M (random) measurements that are (naturally) not orthogonal.
+    """
+    # Set the random seed
+    np.random.seed(rng_seed)
+
+    # Generate the reference data
+    rot_data_sensor = np.random.normal(0, noise_std, (3, num_measure))
+    rot_data_sensor /= np.linalg.norm(rot_data_sensor, axis=0)
+
+    # Check the dimensions
+    assert rot_data_sensor.shape == (3, num_measure), \
+        "The sensor data must be a 3xM array," + \
+        f" but is shape {rot_data_sensor.shape}."
+
+    # Generate the model data
+    if rot_axis == 'x':
+        dcm_func = rotation.dcmX
+    elif rot_axis == 'y':
+        dcm_func = rotation.dcmY
+    elif rot_axis == 'z':
+        dcm_func = rotation.dcmZ
+    else:
+        raise ValueError(f'Invalid rotation axis. Given: {rot_axis}')
+
+    ref_data_model = dcm_func(rot_angle) @ rot_data_sensor
+
+    # Check the dimensions
+    assert ref_data_model.shape == (3, num_measure), \
+        "The model data must be a 3xM array," + \
+        f" but is shape {ref_data_model.shape}."
+
+    return rot_data_sensor, ref_data_model
+
+
+
+
+def ex_d_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
     """
     Two measurements that are not orthogonal.
     """
@@ -80,41 +119,41 @@ def ex_c_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
         "The sensor data must be a 3x2 array," + \
         f" but is shape {sensor_data.shape}."
 
-    # # Reference data
-    # # First vector is along the desired axis
-    # if ref_axis == 'x':
-    #     ref_vec1 = np.array([1, 0, 0])
-    #     dcm_func = rotation.dcmZ
-    # elif ref_axis == 'y':
-    #     ref_vec1 = np.array([0, 1, 0])
-    #     dcm_func = rotation.dcmX
-    # elif ref_axis == 'z':
-    #     ref_vec1 = np.array([0, 0, 1])
-    #     dcm_func = rotation.dcmY
-    # else:
-    #     raise ValueError(f'Invalid rotation axis. Given: {ref_axis}')
+    # Reference data
+    # First vector is along the desired axis
+    if ref_axis == 'x':
+        ref_vec1 = np.array([1, 0, 0])
+        dcm_func = rotation.dcmZ
+    elif ref_axis == 'y':
+        ref_vec1 = np.array([0, 1, 0])
+        dcm_func = rotation.dcmX
+    elif ref_axis == 'z':
+        ref_vec1 = np.array([0, 0, 1])
+        dcm_func = rotation.dcmY
+    else:
+        raise ValueError(f'Invalid rotation axis. Given: {ref_axis}')
 
-    # # Second vector is an angle away from the first vector that matches
-    # # the angle between the two random vectors (vec1 and vec2).
-    # # This is to make the reference data match the model data.
-    # angle_to_rotate = np.arccos(cos_angle)
+    # Second vector is an angle away from the first vector that matches
+    # the angle between the two random vectors (vec1 and vec2).
+    # This is to make the reference data match the model data.
+    angle_to_rotate = np.arccos(cos_angle)
     # print(f"Angle between the vectors: {angle_to_rotate} (rad)")
     # print(f"Angle between the vectors: {angle_to_rotate*180/np.pi} (deg)")
-    # ref_vec2 = dcm_func(angle_to_rotate) @ ref_vec1
+    ref_vec2 = dcm_func(angle_to_rotate) @ ref_vec1
 
-    # model_data = np.array([ref_vec1, ref_vec2]).T
-    # # Check the size
-    # assert model_data.shape == (3, 2), \
-    #     "The sensor data must be a 3x2 array," + \
-    #     f" but is shape {model_data.shape}."
+    model_data = np.array([ref_vec1, ref_vec2]).T
+    # Check the size
+    assert model_data.shape == (3, 2), \
+        "The sensor data must be a 3x2 array," + \
+        f" but is shape {model_data.shape}."
 
-    # # Check that the dot product is the same
+    # Check that the dot product is the same
     # print("Dot products:")
     # print(np.dot(sensor_data[:, 0], sensor_data[:, 1]))
     # print(np.dot(model_data[:, 0], model_data[:, 1]))
-    # assert np.abs(np.dot(sensor_data[:, 0], sensor_data[:, 1]) - \
-    #               np.dot(model_data[:, 0], model_data[:, 1])) < 1e-10, \
-    #     "The dot product of the sensor data and model data are not the same."
+    assert np.abs(np.dot(sensor_data[:, 0], sensor_data[:, 1]) - \
+                  np.dot(model_data[:, 0], model_data[:, 1])) < 1e-10, \
+        "The dot product of the sensor data and model data are not the same."
 
     # print("Sensor data:")
     # print(sensor_data)
@@ -123,12 +162,12 @@ def ex_c_data_two_measure(ref_axis='x', rng_seed=0, cos_angle_limit=0.1):
     # print()
 
     # Try just rotating the sensor data to match the model data
-    sensor_to_model = rotation.dcmZ(np.pi/2)
-    print()
-    print("Sensor to model DCM:")
-    print(sensor_to_model)
+    # sensor_to_model = rotation.dcmZ(np.pi/2)
+    # print()
+    # print("Sensor to model DCM:")
+    # print(sensor_to_model)
 
-    model_data = sensor_to_model @ sensor_data
+    # model_data = sensor_to_model @ sensor_data
 
     return sensor_data, model_data
 
@@ -173,18 +212,21 @@ if __name__ == "__main__":
         ('ex_a', 'x', np.pi/2),
         ('ex_a', 'y', np.pi/4),
         ('ex_a', 'z', np.pi),
-        ('ex_b', 'x', np.pi/2, 0.001),
-        ('ex_b', 'y', np.pi/4, 0.001),
-        ('ex_b', 'z', np.pi, 0.001),
-        ('ex_b', 'x', np.pi/2, 0.1),
-        ('ex_b', 'y', np.pi/4, 0.1),
-        ('ex_b', 'z', np.pi, 0.1),
-        ('ex_c', 'x', 0, 0.1, True),
-        ('ex_c', 'y', 0, 0.1, True),
-        ('ex_c', 'z', 0, 0.1, True),
-        ('ex_c', 'x', 0, 0.1, False),
-        ('ex_c', 'y', 0, 0.1, False),
-        ('ex_c', 'z', 0, 0.1, False)
+        ('ex_b', 'x', np.pi/2, 0.001, False),
+        ('ex_b', 'y', np.pi/4, 0.001, False),
+        ('ex_b', 'z', np.pi, 0.001, False),
+        ('ex_b', 'x', np.pi/2, 0.1, True),
+        ('ex_b', 'y', np.pi/4, 0.1, True),
+        ('ex_b', 'z', np.pi, 0.1, True),
+        ('ex_c', 'x', np.pi/2, 0.1, True),
+        ('ex_c', 'y', np.pi/4, 0.1, True),
+        ('ex_c', 'z', np.pi, 0.1, True),
+        ('ex_d', 'x', 0, 0.1, True),
+        ('ex_d', 'y', 0, 0.1, True),
+        ('ex_d', 'z', 0, 0.1, True),
+        ('ex_d', 'x', 0, 0.1, False),
+        ('ex_d', 'y', 0, 0.1, False),
+        ('ex_d', 'z', 0, 0.1, False)
     ]
 
     for s_ind, scenario in enumerate(scenarios):
@@ -204,12 +246,14 @@ if __name__ == "__main__":
             run_example(estimator_under_test, sense_data, ref_data)
 
         elif scenario[0] == 'ex_b':
-            _, sc_rot_axis, sc_rot_angle, sc_noise_std = scenario
+            _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
             print_example_header(s_ind+1,
                 f"Orthogonal measurements in {sc_rot_axis} with noise {sc_noise_std}")
 
             # Instantiate the estimator
-            estimator_under_test = att_est.DeterministicAttitudeEstimator()
+            estimator_under_test = att_est.DeterministicAttitudeEstimator(
+                use_projection=sc_proj
+            )
 
             # Get the data
             sense_data, ref_data = ex_b_data_orthogonal_with_noise(
@@ -219,6 +263,23 @@ if __name__ == "__main__":
             run_example(estimator_under_test, sense_data, ref_data)
 
         elif scenario[0] == 'ex_c':
+            _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
+            print_example_header(s_ind+1,
+                f"Noisy measurements in {sc_rot_axis} with noise {sc_noise_std}")
+
+            # Instantiate the estimator
+            estimator_under_test = att_est.DeterministicAttitudeEstimator(
+                use_projection=sc_proj
+            )
+
+            # Get the data
+            sense_data, ref_data = ex_c_data_noisy_not_orthogonal(
+                sc_rot_axis, sc_rot_angle, sc_noise_std)
+
+            # Run the example
+            run_example(estimator_under_test, sense_data, ref_data)
+
+        elif scenario[0] == 'ex_d':
             _, sc_ref_axis, sc_rng, sc_cos_angle_limit, sc_use_det = scenario
             print_example_header(s_ind+1,
                 f"Two measurements in {sc_ref_axis}, using Det Att? {sc_use_det}")
@@ -229,7 +290,7 @@ if __name__ == "__main__":
                     use_det_att=sc_use_det)
 
             # Get the data
-            sense_data, ref_data = ex_c_data_two_measure(
+            sense_data, ref_data = ex_d_data_two_measure(
                 sc_ref_axis, rng_seed=sc_rng,
                 cos_angle_limit=sc_cos_angle_limit)
 

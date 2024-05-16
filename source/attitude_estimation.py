@@ -38,6 +38,28 @@ def check_rotation_matrix(rot: np.ndarray, full_output: bool = False):
     return is_rotation_matrix
 
 
+def project_to_nearest_rotation(near_rot: np.ndarray) -> np.ndarray:
+    """
+    Project a matrix to the nearest rotation matrix using the SVD method.
+    Mathematically, we are projecting onto the SO(3) manifold.
+
+    Parameters
+    ----------
+    near_rot : np.ndarray
+        The 3x3 matrix to project to the nearest rotation matrix.
+
+    Returns
+    -------
+    np.ndarray
+        The nearest rotation matrix to the input matrix.
+    """
+    # Perform the SVD
+    umat, _, vtmat = np.linalg.svd(near_rot)
+    # Calculate the rotation matrix
+    rot = umat @ vtmat
+    return rot
+
+
 
 class AttitudeEstimator:
     """
@@ -70,7 +92,8 @@ class AttitudeEstimator:
     def verify_estimate(self,
                         measurements: np.ndarray,
                         model: np.ndarray,
-                        estimate: np.ndarray) -> float:
+                        estimate: np.ndarray,
+                        verbose: bool = False) -> float:
         """
         Verify the estimate of the attitude of the spacecraft given a collection
         of direction measurements.
@@ -84,6 +107,7 @@ class AttitudeEstimator:
         estimate : np.array
             The 3x3 rotation matrix from model (i.e., inertial) frame to
             measurement (i.e., body) frame.
+        verbose : bool
 
         Returns
         -------
@@ -99,8 +123,9 @@ class AttitudeEstimator:
 
         total_error = np.linalg.norm(measurements - predicted_measurements)
 
-        print(f"Predicted Measurements: \n{predicted_measurements}")
-        print(f"Measurements: \n{measurements}")
+        if verbose:
+            print(f"Predicted Measurements: \n{predicted_measurements}")
+            print(f"Measurements: \n{measurements}")
 
         return measurement_wise_error, total_error
 
@@ -112,8 +137,8 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
     This estimator does not require an initial estimate (i.e., it is a snapshot
     estimator). It uses the direct inverse method to estimate the attitude.
     """
-    def __init__(self):
-        pass
+    def __init__(self, use_projection=True):
+        self.use_projection = use_projection
 
     def estimate(self, measurements: np.ndarray,
                  model: np.ndarray,
@@ -165,6 +190,10 @@ class DeterministicAttitudeEstimator(AttitudeEstimator):
         # Calculate the rotation matrix
         rot = measurements @ v_pinv
 
+        if self.use_projection:
+            # Project the rotation matrix to the nearest rotation matrix
+            rot = project_to_nearest_rotation(rot)
+
         if hard_check_rot:
             # Check that the rotation matrix is orthogonal
             is_rotation_matrix = check_rotation_matrix(rot)
@@ -180,9 +209,66 @@ class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
     Special estimator for when there are only two measurements.
     """
     def __init__(self,
-                 use_det_att: bool = True):
+                 use_det_att: bool = True,
+                 use_spread: bool = False):
         self.det_att_estimator = DeterministicAttitudeEstimator()
         self.use_det_att = use_det_att
+        self.use_spread = use_spread
+
+    def make_triad(self, directions: np.ndarray) -> np.ndarray:
+        """
+        Given two directions, create a triad of directions that is
+        orthogonal.
+
+        Parameters
+        ----------
+        directions : np.array
+            A 3x2 array of directions.
+
+        Returns
+        -------
+        np.array
+            A 3x3 array of directions that is orthogonal.
+        """
+        # Check the shape of the directions; must be 3x2 arrays
+        assert directions.shape == (3, 2), \
+            "The directions must be a 3x2 array," + \
+            f" but is shape {directions.shape}."
+
+
+        d0 = directions[:, 0]
+        d1 = directions[:, 1]
+
+        # The first is still the same
+        p0 = d0
+        # The second is the cross product of the m0 and m1
+        # so that p1 is orthogonal to p0
+        p1 = np.cross(d0, d1)
+        p1 /= np.linalg.norm(p1) # Normalize
+        # The third is the cross product of the first two
+        # so that p2 is orthogonal to p0 and p1
+        p2 = np.cross(p0, p1)
+        p2 /= np.linalg.norm(p2) # Normalize (though it should be already)
+        d_triad = np.array([p0, p1, p2]).T
+
+        # Check the size
+        assert d_triad.shape == (3, 3), \
+            "The triad measurements must be a 3x3 array," + \
+            f" but is shape {d_triad.shape}."
+
+        # Check the row vs column
+        assert np.allclose(d_triad[:, 0], p0), \
+            "The first column of the triad directions must be the first" + \
+            " directions, but is not."
+
+        # Check that the triad is a rotation matrix
+        is_rotation_matrix = check_rotation_matrix(d_triad)
+        assert is_rotation_matrix, \
+            "The triad is not a rotation matrix." + \
+            f" The matrix is \n{d_triad}"
+
+        return d_triad
+
 
     def estimate(self,
                  measurements: np.ndarray,
@@ -216,36 +302,8 @@ class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
         assert model.shape == (3, 2), \
             f"The model must be a 3x2 array, but is shape {model.shape}."
 
-        meas0 = measurements[:, 0]
-        meas1 = measurements[:, 1]
-
-        # The first is still the same
-        p0 = meas0
-        # The second is the cross product of the m0 and m1
-        # so that p1 is orthogonal to p0
-        p1 = np.cross(meas0, meas1)
-        p1 /= np.linalg.norm(p1) # Normalize
-        # The third is the cross product of the first two
-        # so that p2 is orthogonal to p0 and p1
-        p2 = np.cross(p0, p1)
-        p2 /= np.linalg.norm(p2) # Normalize (though it should be already)
-        measurements_triad = np.array([p0, p1, p2])
-
-        # Repeat for the model
-        model0 = model[:, 0]
-        model1 = model[:, 1]
-        v0 = model0
-        v1 = np.cross(model0, model1)
-        v1 /= np.linalg.norm(v1)
-        v2 = np.cross(v0, v1)
-        v2 /= np.linalg.norm(v2)
-        model_triad = np.array([v0, v1, v2])
-
-
-        # Check the size
-        assert measurements_triad.shape == (3, 3), \
-            "The triad measurements must be a 3x3 array," + \
-            f" but is shape {measurements_triad.shape}."
+        measurements_triad = self.make_triad(measurements)
+        model_triad = self.make_triad(model)
 
         if self.use_det_att:
             print("Using the DeterministicAttitudeEstimator")
