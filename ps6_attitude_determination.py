@@ -201,9 +201,9 @@ def print_example_header(example_num, example_name):
     """
     Print the header for the example
     """
-    print("\n----------")
+    print("\n------------------")
     print(f"Example {example_num}: {example_name}")
-    print("----------")
+    print("------------------")
 
 
 if __name__ == "__main__":
@@ -233,7 +233,7 @@ if __name__ == "__main__":
         if scenario[0] == 'ex_a':
             _, sc_rot_axis, sc_rot_angle = scenario
             print_example_header(s_ind+1,
-                                 f"Orthogonal measurements in {sc_rot_axis}")
+                f"[A] Orthogonal measurements in {sc_rot_axis}")
 
             # Instantiate the estimator
             estimator_under_test = att_est.DeterministicAttitudeEstimator()
@@ -248,7 +248,7 @@ if __name__ == "__main__":
         elif scenario[0] == 'ex_b':
             _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
             print_example_header(s_ind+1,
-                f"Orthogonal measurements in {sc_rot_axis} with noise {sc_noise_std}")
+                f"[B] Orthogonal measurements in {sc_rot_axis} with noise {sc_noise_std}")
 
             # Instantiate the estimator
             estimator_under_test = att_est.DeterministicAttitudeEstimator(
@@ -265,7 +265,7 @@ if __name__ == "__main__":
         elif scenario[0] == 'ex_c':
             _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
             print_example_header(s_ind+1,
-                f"Noisy measurements in {sc_rot_axis} with noise {sc_noise_std}")
+                f"[C] Noisy measurements in {sc_rot_axis} with noise {sc_noise_std}")
 
             # Instantiate the estimator
             estimator_under_test = att_est.DeterministicAttitudeEstimator(
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         elif scenario[0] == 'ex_d':
             _, sc_ref_axis, sc_rng, sc_cos_angle_limit, sc_use_det = scenario
             print_example_header(s_ind+1,
-                f"Two measurements in {sc_ref_axis}, using Det Att? {sc_use_det}")
+                f"[D] Two measurements in {sc_ref_axis}, using Det Att? {sc_use_det}")
 
             # Instantiate the estimator
             estimator_under_test = \
@@ -299,3 +299,5 @@ if __name__ == "__main__":
 
         else:
             raise ValueError(f"Invalid scenario: {scenario}")
+
+    print("\n\nAll examples run.\n\n")

@@ -210,10 +210,12 @@ class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
     """
     def __init__(self,
                  use_det_att: bool = True,
-                 use_spread: bool = False):
+                 use_spread: bool = True,
+                 verbose: bool = False):
         self.det_att_estimator = DeterministicAttitudeEstimator()
         self.use_det_att = use_det_att
         self.use_spread = use_spread
+        self.verbose = verbose
 
     def make_triad(self, directions: np.ndarray) -> np.ndarray:
         """
@@ -235,9 +237,21 @@ class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
             "The directions must be a 3x2 array," + \
             f" but is shape {directions.shape}."
 
+        if self.use_spread:
+            d0_base = directions[:, 0]
+            d1_base = directions[:, 1]
 
-        d0 = directions[:, 0]
-        d1 = directions[:, 1]
+            # Average sum and difference
+            d0 = (d0_base + d1_base) / 2
+            d1 = (d0_base - d1_base) / 2
+
+            # Normalize
+            d0 /= np.linalg.norm(d0)
+            d1 /= np.linalg.norm(d1)
+
+        else:
+            d0 = directions[:, 0]
+            d1 = directions[:, 1]
 
         # The first is still the same
         p0 = d0
@@ -306,25 +320,17 @@ class DegenerateDeterminisitcAttitudeEstimator(AttitudeEstimator):
         model_triad = self.make_triad(model)
 
         if self.use_det_att:
-            print("Using the DeterministicAttitudeEstimator")
+            if self.verbose:
+                print("Using the DeterministicAttitudeEstimator")
+
             # Use the DeterministicAttitudeEstimator to estimate the attitude
             rot = self.det_att_estimator.estimate(
                 measurements_triad, model_triad,
                 hard_check_rot=hard_check_rot)
 
         else:
-            print("Using the Transpose method")
-            # Use that the triad is a rotation matrix (inverse is transpose)
-            # Check that the triad is a rotation matrix
-            is_rotation_matrix = check_rotation_matrix(measurements_triad)
-            assert is_rotation_matrix, \
-                "The triad is not a rotation matrix." + \
-                f" The matrix is \n{measurements_triad}"
-
-            is_rotation_matrix = check_rotation_matrix(model_triad)
-            assert is_rotation_matrix, \
-                "The triad is not a rotation matrix." + \
-                f" The matrix is \n{model_triad}"
+            if self.verbose:
+                print("Using the Transpose method")
 
             # Again, we have that M = R * V
             # So, R = M * V^-1 = M * V^T
