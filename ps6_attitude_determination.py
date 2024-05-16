@@ -339,7 +339,8 @@ def plot_final_results(final_results, save_path):
         plt.show()
 
         # Save the figure
-        fig.savefig(f"{save_path}/PS6-AttDet-example_{ex_name}_errors.png")
+        fig.savefig(f"{save_path}/PS6-AttDet-example_{ex_name}_errors.png", 
+                    dpi=200, bbox_inches='tight')
 
 
 if __name__ == "__main__":
