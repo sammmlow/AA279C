@@ -296,7 +296,7 @@ for i in range(number_of_orbits + 1):
 
 plt.grid()
 plt.show()
-fig.savefig(file_path + 'QTR-BR.png', dpi=200, bbox_inches='tight')
+fig.savefig(file_path + 'QTR-BR-three.png', dpi=200, bbox_inches='tight')
 
 # plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
 #                   states_qtrBN, states_gtorq, states_mtorq,
