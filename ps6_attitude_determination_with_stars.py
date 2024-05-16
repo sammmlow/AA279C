@@ -14,7 +14,7 @@ import source.attitude_estimation as att_est
 
 from plot_everything import plot_everything
 
-file_path = "figures/ps6/PS6-AttDet-Stars-Deterministic" # For saving the figures
+file_path = "figures/ps6/PS6-AttDet-Stars-AngVel-Mismatch" # For saving the figures
 current_time = datetime.datetime(2025, 1, 1, 12, 0, 0) # For ECEF computation.
 plt.close("all")
 
@@ -25,7 +25,8 @@ plt.close("all")
 bool_enable_perturbations = True
 bool_enable_active_control = True
 bool_plot_orbit = True
-bool_use_statistical_estimation = False
+bool_use_statistical_estimation = None
+bool_ang_vel_mismatch = True
 
 # Statistical
 # Deterministic
@@ -57,10 +58,11 @@ sc.attBN = QTR( dcm = initial_dcm )
 # Set up the attitude estimator...
 # ===========================================================================
 
-if bool_use_statistical_estimation:
-    estimator = att_est.StatisticalAttitudeEstimator(verbose=False)
-else:
-    estimator = att_est.DeterministicAttitudeEstimator(use_projection=True)
+if bool_use_statistical_estimation is not None:
+    if bool_use_statistical_estimation:
+        estimator = att_est.StatisticalAttitudeEstimator(verbose=False)
+    else:
+        estimator = att_est.DeterministicAttitudeEstimator(use_projection=True)
 
 # ===========================================================================
 # Simulation time and sampling parameters...
@@ -120,6 +122,24 @@ att_est_qtr_att = np.zeros(( 4, samples ))
 att_est_total_err = np.zeros(samples)
 att_est_qtr_att_err = np.zeros(( 4, samples ))
 
+
+# ===========================================================================
+# Attitude estimation with angular velocity only...
+# ===========================================================================
+
+sc_angvel = Spacecraft( elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6],
+                 inertia = np.diag( [4770.398, 6313.894, 7413.202] ) )
+
+# Body (B) to inertial (N) angular velocity and attitude
+sc_angvel.ohmBN = -initial_omega
+sc_angvel.attBN = QTR( dcm = initial_dcm )
+
+att_est_ang_vel_only = np.zeros(( 3, samples ))
+att_est_ang_vel_only_qtr = np.zeros(( 4, samples ))
+att_est_ang_vel_only_err = np.zeros(( 4, samples ))
+
+att_est_ang_vel_only[:, 0] = sc_angvel.ohmBN 
+att_est_ang_vel_only_qtr[:, 0] = sc_angvel.attBN 
 
 # ===========================================================================
 # Actual dynamics simulation below.
@@ -192,50 +212,72 @@ while now < duration:
     sc.propagate_orbit(timestep)
     sc.propagate_attitude(timestep, torque = pert_torque + ctrl_torque )
 
-    # Get the star measurements.
-    gt_rot = sc.attBN.dcm.T # i.e., from ECI to body frame.
-    star_measurements = gt_rot @ stars
+    # Repeat the same for the angular velocity only estimator.
+    sc_angvel.propagate_orbit(timestep)
 
-    # Attitude determination with stars.
-    dcm_att_estimate = estimator.estimate(star_measurements, stars)
-    qtr_att_estimate = QTR(dcm = dcm_att_estimate)
-    att_est_qtr_att[:, n] = qtr_att_estimate.qtr
+    if bool_ang_vel_mismatch:
+        tot_torque = 0.5 * pert_torque + ctrl_torque
+    else:
+        tot_torque = pert_torque + ctrl_torque
 
-    # print("Attitude estimate: \n", dcm_att_estimate)
-    # print("GT Attitude: \n", gt_rot)
+    sc_angvel.propagate_attitude(timestep, torque = tot_torque )
 
-    # Compute the measurement error.
-    _, tot_err = estimator.verify_estimate(star_measurements, stars, dcm_att_estimate)
-    # print("Total error: ", tot_err)
-    att_est_total_err[n] = tot_err
+    att_est_ang_vel_only[:, n] = sc_angvel.ohmBN
+    ang_vel_only_gt_rot = sc.attBN.dcm.T
+    ang_vel_only_est_rot = sc_angvel.attBN.dcm.T
 
-    # Compute the attitude error.
-    # att_err = qtr_att_estimate / sc.attBN
-    # print("Attitude error: ", att_err)
-    # att_est_qtr_att_err[:, n] = att_err.qtr
-    att_err_dcm = gt_rot @ dcm_att_estimate.T
-    att_err_qtr = QTR(dcm = att_err_dcm)
+    ang_vel_only_att_err_dcm = ang_vel_only_gt_rot @ ang_vel_only_est_rot.T
+    ang_vel_only_att_err_qtr = QTR(dcm = ang_vel_only_att_err_dcm)
 
-    # qtr_att_estimate_conjugate = [ qtr_att_estimate.qtr[0], 
-    #                               -qtr_att_estimate.qtr[1],
-    #                               -qtr_att_estimate.qtr[2],
-    #                               -qtr_att_estimate.qtr[3]]
-    # print(qtr_att_estimate_conjugate)
-    # att_err_qtr_conj = QTR(qtr = qtr_att_estimate_conjugate)
+    att_est_ang_vel_only_qtr[:, n] = sc_angvel.attBN.qtr
+    att_est_ang_vel_only_err[:, n] = ang_vel_only_att_err_qtr.qtr
 
-    # attBN_conjugate = [ sc.attBN.qtr[0],
-    #                    -sc.attBN.qtr[1],
-    #                    -sc.attBN.qtr[2],
-    #                    -sc.attBN.qtr[3]]
-    # attBN_qtr_conj = QTR(qtr = attBN_conjugate)
-    # att_err_qtr_direct = sc.attBN * att_err_qtr #QTR(qtr = qtr_att_estimate_conjugate)
 
-    # print("Attitude error (from DCM): ", att_err_qtr.qtr)
-    # print("Attitude error (from QTR): ", att_err_qtr_direct.qtr)
+    # STAR TRACKER
+    if bool_use_statistical_estimation is not None:
 
-    att_est_qtr_att_err[:, n] = att_err_qtr.qtr
+        # Get the star measurements.
+        gt_rot = sc.attBN.dcm.T # i.e., from ECI to body frame.
+        star_measurements = gt_rot @ stars
 
-    # raise NotImplementedError("Implement the rest of the code below.")
+        # Attitude determination with stars.
+        dcm_att_estimate = estimator.estimate(star_measurements, stars)
+        qtr_att_estimate = QTR(dcm = dcm_att_estimate)
+        att_est_qtr_att[:, n] = qtr_att_estimate.qtr
+
+        # print("Attitude estimate: \n", dcm_att_estimate)
+        # print("GT Attitude: \n", gt_rot)
+
+        # Compute the measurement error.
+        _, tot_err = estimator.verify_estimate(star_measurements, stars, dcm_att_estimate)
+        # print("Total error: ", tot_err)
+        att_est_total_err[n] = tot_err
+
+        # Compute the attitude error.
+        # att_err = qtr_att_estimate / sc.attBN
+        # print("Attitude error: ", att_err)
+        # att_est_qtr_att_err[:, n] = att_err.qtr
+        att_err_dcm = gt_rot @ dcm_att_estimate.T
+        att_err_qtr = QTR(dcm = att_err_dcm)
+
+        # qtr_att_estimate_conjugate = [ qtr_att_estimate.qtr[0], 
+        #                               -qtr_att_estimate.qtr[1],
+        #                               -qtr_att_estimate.qtr[2],
+        #                               -qtr_att_estimate.qtr[3]]
+        # print(qtr_att_estimate_conjugate)
+        # att_err_qtr_conj = QTR(qtr = qtr_att_estimate_conjugate)
+
+        # attBN_conjugate = [ sc.attBN.qtr[0],
+        #                    -sc.attBN.qtr[1],
+        #                    -sc.attBN.qtr[2],
+        #                    -sc.attBN.qtr[3]]
+        # attBN_qtr_conj = QTR(qtr = attBN_conjugate)
+        # att_err_qtr_direct = sc.attBN * att_err_qtr #QTR(qtr = qtr_att_estimate_conjugate)
+
+        # print("Attitude error (from DCM): ", att_err_qtr.qtr)
+        # print("Attitude error (from QTR): ", att_err_qtr_direct.qtr)
+
+        att_est_qtr_att_err[:, n] = att_err_qtr.qtr
     
     # Update simulation time and calendar time
     current_time = current_time + datetime.timedelta(seconds = timestep)
@@ -246,57 +288,99 @@ while now < duration:
 # Plot everything!
 # ===========================================================================
 
-print("Plotting Total Measurement Error")
-fig = plt.figure()
-plt.plot(timeAxis[::skip], att_est_total_err[::skip], label = "Total Error")
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Total L2 Measurement Error')
+if bool_use_statistical_estimation is not None:
+    print("Plotting Total Measurement Error")
+    fig = plt.figure()
+    plt.plot(timeAxis[::skip], att_est_total_err[::skip], label = "Total Error")
+    plt.xlabel('Simulation time [sec]')
+    plt.ylabel('Total L2 Measurement Error')
 
-# Plot the orbital periods as vertical lines.
-for i in range(number_of_orbits + 1):
-    plt.axvline(i * period, color='gray', linestyle='--')
+    # Plot the orbital periods as vertical lines.
+    for i in range(number_of_orbits + 1):
+        plt.axvline(i * period, color='gray', linestyle='--')
 
-plt.grid()
-plt.show()
-fig.savefig(f"{file_path}-TotalError.png")
+    plt.grid()
+    plt.show()
+    fig.savefig(f"{file_path}-TotalError.png")
 
-print("Plotting Quaternion Attitude Error")
-fig = plt.figure()
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[0, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[1, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[2, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[3, ::skip])
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Error Quaternions (BR vs BR estimate)')
-plt.legend(['q0','q1','q2','q3'])
+    print("Plotting Quaternion Attitude Error")
+    fig = plt.figure()
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[0, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[1, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[2, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[3, ::skip])
+    plt.xlabel('Simulation time [sec]')
+    plt.ylabel('Error Quaternions (BR vs BR estimate)')
+    plt.legend(['q0','q1','q2','q3'])
 
-# Plot the orbital periods as vertical lines.
-for i in range(number_of_orbits + 1):
-    plt.axvline(i * period, color='gray', linestyle='--')
+    # Plot the orbital periods as vertical lines.
+    for i in range(number_of_orbits + 1):
+        plt.axvline(i * period, color='gray', linestyle='--')
 
-plt.grid()
-plt.show()
-fig.savefig(file_path + 'QTR-BR.png', dpi=200, bbox_inches='tight')
+    plt.grid()
+    plt.show()
+    fig.savefig(file_path + 'QTR-BR.png', dpi=200, bbox_inches='tight')
 
 
-print("Plotting (vector part) Quaternion Attitude Error")
-fig = plt.figure()
-# plt.plot(timeAxis[::skip], att_est_qtr_att_err[0, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[1, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[2, ::skip])
-plt.plot(timeAxis[::skip], att_est_qtr_att_err[3, ::skip])
-plt.xlabel('Simulation time [sec]')
-plt.ylabel('Error Quaternions (BR vs BR estimate)')
-# plt.legend(['q0','q1','q2','q3'])
-plt.legend(['q1','q2','q3'])
+    print("Plotting (vector part) Quaternion Attitude Error")
+    fig = plt.figure()
+    # plt.plot(timeAxis[::skip], att_est_qtr_att_err[0, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[1, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[2, ::skip])
+    plt.plot(timeAxis[::skip], att_est_qtr_att_err[3, ::skip])
+    plt.xlabel('Simulation time [sec]')
+    plt.ylabel('Error Quaternions (BR vs BR estimate)')
+    # plt.legend(['q0','q1','q2','q3'])
+    plt.legend(['q1','q2','q3'])
 
-# Plot the orbital periods as vertical lines.
-for i in range(number_of_orbits + 1):
-    plt.axvline(i * period, color='gray', linestyle='--')
+    # Plot the orbital periods as vertical lines.
+    for i in range(number_of_orbits + 1):
+        plt.axvline(i * period, color='gray', linestyle='--')
 
-plt.grid()
-plt.show()
-fig.savefig(file_path + 'QTR-BR-three.png', dpi=200, bbox_inches='tight')
+    plt.grid()
+    plt.show()
+    fig.savefig(file_path + 'QTR-BR-three.png', dpi=200, bbox_inches='tight')
+
+
+else:
+    print("Plotting Quaternion Attitude Error for Angular Velocity Only Estimation")
+    fig = plt.figure()
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[0, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[1, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[2, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[3, ::skip])
+    plt.xlabel('Simulation time [sec]')
+    plt.ylabel('Error Quaternions (BR vs BR estimate)')
+    plt.legend(['q0','q1','q2','q3'])
+
+    # Plot the orbital periods as vertical lines.
+    for i in range(number_of_orbits + 1):
+        plt.axvline(i * period, color='gray', linestyle='--')
+
+    plt.grid()
+    plt.show()
+    fig.savefig(file_path + 'QTR-BR.png', dpi=200, bbox_inches='tight')
+
+
+    print("Plotting (vector part) Quaternion Attitude Error for Angular Velocity Only Estimation")
+    fig = plt.figure()
+    # plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[0, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[1, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[2, ::skip])
+    plt.plot(timeAxis[::skip], att_est_ang_vel_only_err[3, ::skip])
+    plt.xlabel('Simulation time [sec]')
+    plt.ylabel('Error Quaternions (BR vs BR estimate)')
+    # plt.legend(['q0','q1','q2','q3'])
+    plt.legend(['q1','q2','q3'])
+
+    # Plot the orbital periods as vertical lines.
+    for i in range(number_of_orbits + 1):
+        plt.axvline(i * period, color='gray', linestyle='--')
+
+    plt.grid()
+    plt.show()
+    fig.savefig(file_path + 'QTR-BR-three.png', dpi=200, bbox_inches='tight')
+
 
 # plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
 #                   states_qtrBN, states_gtorq, states_mtorq,
