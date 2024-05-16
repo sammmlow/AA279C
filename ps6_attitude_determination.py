@@ -1,6 +1,9 @@
-# Test out the attitude estimation code on a simple example.
+"""
+Test out the attitude estimation code on a robust suite of examples.
+"""
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import source.attitude_estimation as att_est
 import source.rotation as rotation
@@ -208,9 +211,134 @@ def print_example_header(example_num, example_name):
     print("------------------")
 
 
+def run_all_scenarios(scenario_list):
+    """
+    Run all the scenarios
+    """
+    run_result_tuple = []
+
+    for use_quest in [False, True]:
+
+        for s_ind, scenario in enumerate(scenario_list):
+            scenario_name = scenario[0]
+
+            front_label = ""
+            if use_quest:
+                front_label = " QUEST"
+
+            # Instantiate the estimator
+            if not use_quest:
+                if scenario_name in ['ex_a', 'ex_b', 'ex_c']:
+                    sc_proj = scenario[-1]
+
+                    estimator_under_test = att_est.DeterministicAttitudeEstimator(
+                        use_projection=sc_proj
+                    )
+
+                elif scenario_name in ['ex_d']:
+                    sc_use_det = scenario[-1]
+
+                    estimator_under_test = \
+                        att_est.DegenerateDeterminisitcAttitudeEstimator(
+                            use_det_att=sc_use_det
+                        )
+                else:
+                    estimator_under_test = None
+
+            else:
+                estimator_under_test = att_est.StatisticalAttitudeEstimator()
+
+            # Make the data
+
+            if scenario_name in ['ex_a', 'ex_a_q']:
+                _, sc_rot_axis, sc_rot_angle = scenario
+
+                print_example_header(s_ind+1,
+                    f"[A{front_label}] Orthogonal measurements in {sc_rot_axis}")
+
+                # Get the data
+                sense_data, ref_data = ex_a_data_orthogonal(
+                    sc_rot_axis, sc_rot_angle)
+
+            elif scenario_name == 'ex_b':
+                _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
+                print_example_header(s_ind+1,
+                    f"[B{front_label}] Orthogonal measurements in {sc_rot_axis} " + \
+                        f"with noise {sc_noise_std}")
+
+                # Get the data
+                sense_data, ref_data = ex_b_data_orthogonal_with_noise(
+                    sc_rot_axis, sc_rot_angle, sc_noise_std)
+
+            elif scenario_name == 'ex_c':
+                _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
+                print_example_header(s_ind+1,
+                    f"[C{front_label}] Noisy measurements in {sc_rot_axis} " + \
+                        f"with noise {sc_noise_std}")
+
+                # Get the data
+                sense_data, ref_data = ex_c_data_noisy_not_orthogonal(
+                    sc_rot_axis, sc_rot_angle, sc_noise_std)
+
+            elif scenario_name == 'ex_d':
+                _, sc_ref_axis, sc_rng, sc_cos_angle_limit, sc_use_det = scenario
+                print_example_header(s_ind+1,
+                    f"[D{front_label}] Two measurements in {sc_ref_axis}, " + \
+                        f"using Det Att? {sc_use_det}")
+
+                # Get the data
+                sense_data, ref_data = ex_d_data_two_measure(
+                    sc_ref_axis, rng_seed=sc_rng,
+                    cos_angle_limit=sc_cos_angle_limit)
+
+            else:
+                raise ValueError(f"Invalid scenario: {scenario}")
+
+            # Run the example
+            if estimator_under_test is not None:
+                ex_att_err = run_example(estimator_under_test, sense_data, ref_data)
+                run_result_tuple.append((use_quest, scenario_name, ex_att_err))
+            else:
+                print("skipping example")
+
+    return run_result_tuple
+
+
+def plot_final_results(final_results, save_path):
+    """
+    Plot the final results
+    """
+    # Split the results into two: non-QUEST and QUEST
+    non_quest_results = [res for res in final_results if not res[0]]
+    quest_results = [res for res in final_results if res[0]]
+
+    # Separate out by example since these are non-zero errors
+    example_names = ['ex_a', 'ex_b', 'ex_c', 'ex_d']
+
+    for ex_name in example_names:
+        ex_non_quest = [res for res in non_quest_results if res[1] == ex_name]
+        ex_quest = [res for res in quest_results if res[1] == ex_name]
+
+        ex_non_quest_total_errors = [res[2][1][1] for res in ex_non_quest]
+        ex_quest_total_errors = [res[2][1][1] for res in ex_quest]
+
+        num_ex = len(ex_quest_total_errors)
+
+        fig = plt.figure()
+        plt.scatter(range(num_ex), ex_non_quest_total_errors, label="Deterministic")
+        plt.scatter(range(num_ex), ex_quest_total_errors, label="Statistical")
+        plt.legend()
+        plt.xlabel("Trial Number")
+        plt.ylabel("Total L2 Error")
+        plt.show()
+
+        # Save the figure
+        fig.savefig(f"{save_path}/PS6-AttDet-example_{ex_name}_errors.png")
+
+
 if __name__ == "__main__":
 
-    scenarios = [
+    SCENARIOS = [
         ('ex_a', 'x', np.pi/2),
         ('ex_a', 'y', np.pi/4),
         ('ex_a', 'z', np.pi),
@@ -231,91 +359,14 @@ if __name__ == "__main__":
         ('ex_d', 'z', 0, 0.1, False)
     ]
 
-    run_result_tuple = []
-
-    for use_quest in [False, True]:
-
-        for s_ind, scenario in enumerate(scenarios):
-
-            FRONT_LABEL = ""
-            if use_quest:
-                FRONT_LABEL = " QUEST"
-
-            # Instantiate the estimator
-            if not use_quest:
-                if scenario[0] in ['ex_a', 'ex_b', 'ex_c']:
-                    sc_proj = scenario[-1]
-
-                    estimator_under_test = att_est.DeterministicAttitudeEstimator(
-                        use_projection=sc_proj
-                    )
-
-                elif scenario[0] in ['ex_d']:
-                    sc_use_det = scenario[-1]
-
-                    estimator_under_test = \
-                        att_est.DegenerateDeterminisitcAttitudeEstimator(
-                            use_det_att=sc_use_det
-                        )
-                else:
-                    estimator_under_test = None
-
-            else:
-                estimator_under_test = att_est.StatisticalAttitudeEstimator()
-
-            # Make the data
-
-            if scenario[0] in ['ex_a', 'ex_a_q']:
-                _, sc_rot_axis, sc_rot_angle = scenario
-
-                print_example_header(s_ind+1,
-                    f"[A{FRONT_LABEL}] Orthogonal measurements in {sc_rot_axis}")
-
-                # Get the data
-                sense_data, ref_data = ex_a_data_orthogonal(
-                    sc_rot_axis, sc_rot_angle)
-
-            elif scenario[0] == 'ex_b':
-                _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
-                print_example_header(s_ind+1,
-                    f"[B{FRONT_LABEL}] Orthogonal measurements in {sc_rot_axis} with noise {sc_noise_std}")
-
-                # Get the data
-                sense_data, ref_data = ex_b_data_orthogonal_with_noise(
-                    sc_rot_axis, sc_rot_angle, sc_noise_std)
-
-            elif scenario[0] == 'ex_c':
-                _, sc_rot_axis, sc_rot_angle, sc_noise_std, sc_proj = scenario
-                print_example_header(s_ind+1,
-                    f"[C{FRONT_LABEL}] Noisy measurements in {sc_rot_axis} with noise {sc_noise_std}")
-
-                # Get the data
-                sense_data, ref_data = ex_c_data_noisy_not_orthogonal(
-                    sc_rot_axis, sc_rot_angle, sc_noise_std)
-
-            elif scenario[0] == 'ex_d':
-                _, sc_ref_axis, sc_rng, sc_cos_angle_limit, sc_use_det = scenario
-                print_example_header(s_ind+1,
-                    f"[D{FRONT_LABEL}] Two measurements in {sc_ref_axis}, using Det Att? {sc_use_det}")
-
-                # # Instantiate the estimator
-                # estimator_under_test = \
-                #     att_est.DegenerateDeterminisitcAttitudeEstimator(
-                #         use_det_att=sc_use_det)
-
-                # Get the data
-                sense_data, ref_data = ex_d_data_two_measure(
-                    sc_ref_axis, rng_seed=sc_rng,
-                    cos_angle_limit=sc_cos_angle_limit)
-
-            else:
-                raise ValueError(f"Invalid scenario: {scenario}")
-
-            # Run the example
-            if estimator_under_test is not None:
-                ex_att_err = run_example(estimator_under_test, sense_data, ref_data)
-                run_result_tuple.append(ex_att_err)
-            else:
-                print("skipping example")
+    runs_results = run_all_scenarios(SCENARIOS)
 
     print("\n\nAll examples run.\n\n")
+
+    # Print the results
+    for res in runs_results:
+        print(res[2][1][1])
+
+    # Plot the results
+    SAVE_PATH = "figures/ps6"
+    plot_final_results(runs_results, SAVE_PATH)
