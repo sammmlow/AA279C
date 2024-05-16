@@ -9,7 +9,7 @@ hipparcos = pd.read_csv('hipparcos_star_catalog_solutions.txt', sep=" ", header=
 
 print(hipparcos)
 
-select_num = 100
+select_num = 50
 
 # Down select the stars
 stars_selector = np.arange(0, len(hipparcos), len(hipparcos)//select_num)[:select_num]
@@ -53,4 +53,4 @@ for stars, name, size in zip(catalogs, catalog_names, sizes):
     plt.show()
 
     # Save the figure
-    fig.savefig(f'figures/ps6/PS6-Stars-{name}.png')
+    fig.savefig(f'figures/ps6/PS6-Stars-{name}.png', dpi=200, bbox_inches='tight')
