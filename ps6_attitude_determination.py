@@ -5,6 +5,8 @@ Test out the attitude estimation code on a robust suite of examples.
 import numpy as np
 import matplotlib.pyplot as plt
 
+from matplotlib.ticker import MaxNLocator
+
 import source.attitude_estimation as att_est
 import source.rotation as rotation
 # import source.attitudes as att
@@ -329,7 +331,11 @@ def plot_final_results(final_results, save_path):
         plt.scatter(range(num_ex), ex_quest_total_errors, label="Statistical")
         plt.legend()
         plt.xlabel("Trial Number")
-        plt.ylabel("Total L2 Error")
+        plt.ylabel("Total L2 Measurement Error")
+
+        ax = fig.gca()
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
         plt.show()
 
         # Save the figure
