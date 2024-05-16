@@ -62,7 +62,7 @@ samples = int(duration / timestep)
 sample_bigstep = 6
 sample_trigger_interval = duration / sample_bigstep
 skip = 5 # Larger skip leads to faster plotting
-sample_trigger_count = 0.0;
+sample_trigger_count = 0.0
 
 timeAxis = np.linspace(0, duration, samples)
 
