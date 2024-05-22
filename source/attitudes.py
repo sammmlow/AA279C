@@ -83,7 +83,10 @@ class QTR:
                        [qC[1],    qC[0],    qC[3], -1*qC[2]],
                        [qC[2], -1*qC[3],    qC[0],    qC[1]],
                        [qC[3],    qC[2], -1*qC[1],    qC[0]]])
-        return QTR( qtr=np.transpose( qM @ qP ) )
+        result = np.transpose( qM @ qP )
+        if result[0] < 0.0:
+            result = -1 * result # Ensure short-only rotation
+        return QTR( qtr = result )
 
     # Quaternion quotient. Note that quaternion quotient is not commutative!
     # Self should be the parent rotation (qP), and minuend is the child (qC).
@@ -95,7 +98,10 @@ class QTR:
                        [qC[1],    qC[0],    qC[3], -1*qC[2]],
                        [qC[2], -1*qC[3],    qC[0],    qC[1]],
                        [qC[3],    qC[2], -1*qC[1],    qC[0]]])
-        return QTR( qtr = np.transpose( qM @ qP ) )
+        result = np.transpose( qM @ qP )
+        if result[0] < 0.0:
+            result = -1 * result # Ensure short-only rotation
+        return QTR( qtr = result )
 
     # String ID.
     def strID(self):
@@ -496,6 +502,8 @@ class MRP:
         mPx = 1.0 - np.dot(mP,mP)
         mrpi = (mPx * mC) + (mCx * mP) - 2 * np.cross(mC,mP)
         mrpi = mrpi / (1+(np.dot(mP,mP) * np.dot(mC,mC)) - (2*np.dot(mP,mC)))
+        if np.linalg.norm(mrpi) > 1.0:
+            mrpi = -1 * mrpi / np.dot(mrpi, mrpi) # Ensure short-only rotation
         return MRP(mrp=mrpi)
 
     # MRP quotient. Note that the MRP quotient is not commutative!
@@ -507,6 +515,8 @@ class MRP:
         mPx = 1.0 - np.dot(mP,mP)
         mrpi = (mCx * mP) - (mPx * mC) + 2 * np.cross(mC,mP)
         mrpi = mrpi / (1+(np.dot(mP,mP) * np.dot(mC,mC)) + (2*np.dot(mP,mC)))
+        if np.linalg.norm(mrpi) > 1.0:
+            mrpi = -1 * mrpi / np.dot(mrpi, mrpi) # Ensure short-only rotation
         return MRP(mrp=mrpi)
 
     # String ID.
