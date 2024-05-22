@@ -18,6 +18,10 @@ show_plots = False
 dpi = 300
 bbox_inches = 'tight'
 
+# Test parameters.
+test_vector = np.array([1, 1, 1])
+test_vector = test_vector / np.linalg.norm(test_vector)
+
 
 def euler_angle_rot_small_angle(phi_, theta_, psi_):
     """
@@ -30,7 +34,7 @@ def euler_angle_rot_small_angle(phi_, theta_, psi_):
     )
     return dcm
 
-def quaternion_small_angle(phi_, theta_, psi_):
+def qtr_small_angle(phi_, theta_, psi_):
     """
     Compute the quaternion for a small angle rotation.
     """
@@ -48,6 +52,47 @@ def mrp_small_angle(phi_, theta_, psi_):
     )
     return mrp
 
+# ===========================================================================
+# Helper code to circumvent the normalization of quaternions in the
+# source code.
+
+def qtr_multiply(qtr1, qtr2):
+    """
+    Multiply two quaternions.
+    """
+    qtr = np.zeros(4)
+    # for (r1, v1) . (r2, v2) =
+    # (r1r2 - v1.v2, r1v2 + r2v1 + v1 x v2)
+    r1 = qtr1[0]
+    r2 = qtr2[0]
+    v1 = qtr1[1:]
+    v2 = qtr2[1:]
+
+    qtr[0] = r1 * r2 - np.dot(v1, v2)
+    qtr[1:] = r1 * v2 + r2 * v1 + np.cross(v1, v2)
+
+    return qtr
+
+def qtr_inverse(qtr):
+    """
+    Invert a quaternion.
+    """
+    qtr_conj = np.array([qtr[0], -qtr[1], -qtr[2], -qtr[3]])
+    qtr_norm = np.linalg.norm(qtr)
+
+    return qtr_conj / (qtr_norm ** 2)
+
+def qtr_apply(qtr, vec):
+    """
+    Apply a quaternion to a vector.
+    """
+    qtr_inv = qtr_inverse(qtr)
+    qtr_vec = np.array([0, *vec])
+
+    return qtr_multiply(qtr, qtr_multiply(qtr_vec, qtr_inv))[1:]
+
+# ===========================================================================
+
 # Define the maximum angle for the small angle approximation.
 max_angle = 10 * np.pi / 180
 
@@ -59,6 +104,10 @@ dcmBN = rot.dcmZ(psi) @ rot.dcmY(theta) @ rot.dcmX(phi)
 dcmBN_small = euler_angle_rot_small_angle(phi, theta, psi)
 dcmBN_diff = dcmBN - dcmBN_small
 dcmBN_diff_mag = np.linalg.norm(dcmBN_diff)
+test_vector_DCM = dcmBN @ test_vector
+test_vector_DCM_small = dcmBN_small @ test_vector
+test_vector_DCM_diff = test_vector_DCM - test_vector_DCM_small
+test_vector_DCM_diff_mag = np.linalg.norm(test_vector_DCM_diff)
 
 print("DCM (321):")
 print(dcmBN)
@@ -67,14 +116,26 @@ print(dcmBN_small)
 print("DCM difference:")
 print(dcmBN_diff)
 print("DCM difference magnitude:", dcmBN_diff_mag)
+print("Test vector DCM:            ", test_vector_DCM)
+print("Test vector DCM small angle:", test_vector_DCM_small)
+print("Test vector DCM difference: ", test_vector_DCM_diff)
+print("Test vector DCM difference magnitude:", test_vector_DCM_diff_mag)
 
 # Convert the true DCM to quaternion.
 qtrBN = att.QTR( dcm = dcmBN ).qtr
 # Cannot pass to att.QTR directly since it will normalize the quaternion.
-qtrBN_small = quaternion_small_angle(phi, theta, psi)
+qtrBN_small = qtr_small_angle(phi, theta, psi)
 qtrBN_diff = qtrBN - qtrBN_small
 qtrBN_diff_mag = np.linalg.norm(qtrBN_diff)
+test_vector_QTR = qtr_apply(qtrBN, test_vector)
+test_vector_QTR_small = qtr_apply(qtrBN_small, test_vector)
+test_vector_QTR_diff = test_vector_QTR - test_vector_QTR_small
+test_vector_QTR_diff_mag = np.linalg.norm(test_vector_QTR_diff)
 
+test_vector_DCM_QTR_diff = test_vector_DCM - test_vector_QTR
+test_vector_DCM_QTR_diff_mag = np.linalg.norm(test_vector_DCM_QTR_diff)
+
+print()
 print("Quaternion:")
 print(qtrBN)
 print("Quaternion small angle:")
@@ -82,6 +143,13 @@ print(qtrBN_small)
 print("Quaternion difference:")
 print(qtrBN_diff)
 print("Quaternion difference magnitude:", qtrBN_diff_mag)
+print("Test vector QTR:            ", test_vector_QTR)
+print("Test vector QTR small angle:", test_vector_QTR_small)
+print("Test vector QTR difference: ", test_vector_QTR_diff)
+print("Test vector QTR difference magnitude:", test_vector_QTR_diff_mag)
+
+print("Test vector DCM-QTR difference: ", test_vector_DCM_QTR_diff)
+print("Test vector DCM-QTR difference magnitude:", test_vector_DCM_QTR_diff_mag)
 
 
 # Convert the true DCM to MRP.
@@ -112,6 +180,7 @@ mrp_mag_error = np.zeros((num_linspace, num_linspace, num_linspace))
 angle_mag = np.zeros((num_linspace, num_linspace, num_linspace))
 total_angle_mag = np.zeros((num_linspace, num_linspace, num_linspace))
 
+
 for i, phi in enumerate(phi_arr):
     for j, theta in enumerate(theta_arr):
         for k, psi in enumerate(psi_arr):
@@ -123,7 +192,7 @@ for i, phi in enumerate(phi_arr):
             dcm_mag_error[i, j, k] = np.linalg.norm(dcmBN_diff)
 
             qtrBN = att.QTR( dcm = dcmBN ).qtr
-            qtrBN_small = quaternion_small_angle(phi, theta, psi)
+            qtrBN_small = qtr_small_angle(phi, theta, psi)
             qtrBN_diff = qtrBN - qtrBN_small
             qtr_mag_error[i, j, k] = np.linalg.norm(qtrBN_diff)
 

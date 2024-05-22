@@ -244,6 +244,27 @@ class QTR:
         roll = np.arctan2(dcm[1,2], dcm[2,2])
         return np.array([ yaw, pitch, roll ])
 
+    def get_conjugate(self):
+        """
+        Method for obtaining the quaternion conjugate.
+        """
+        return QTR( qtr = np.array([  self.qtr[0], - self.qtr[1],
+                                    - self.qtr[2], - self.qtr[3]]) )
+
+    def apply(self, vec):
+        """
+        Apply the quaternion to a vector.
+        [0, v_new] = q * [0, v] * q_conj
+
+        Note that this could also be implemented with the Rodrigues formula
+        to be more efficient, but this is more readable.
+        """
+        q = self.qtr
+        q_conj = self.get_conjugate().qtr
+        q_vec = np.array([0, vec[0], vec[1], vec[2]])
+        q_vec_new = q * q_vec * q_conj
+        return q_vec_new[1:]
+
 
 ###############################################################################
 ###############################################################################
@@ -621,3 +642,10 @@ class MRP:
         pitch = -np.arcsin(dcm[0,2])
         roll = np.arctan2(dcm[1,2], dcm[2,2])
         return np.array([ yaw, pitch, roll ])
+
+    def apply(self, vec):
+        """
+        Apply the MRP to a vector. We use the DCM in this case.
+        """
+        v_new = self.dcm @ vec
+        return v_new
