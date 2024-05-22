@@ -12,7 +12,7 @@ from source.spacecraft import Spacecraft
 from source.attitudes import QTR #, MRP
 import source.attitude_estimation as att_est
 
-from plot_everything import plot_everything
+# from plot_everything import plot_everything
 
 file_path = "figures/ps6/PS6-AttDet-Stars-AngVel-Mismatch" # For saving the figures
 current_time = datetime.datetime(2025, 1, 1, 12, 0, 0) # For ECEF computation.
@@ -138,76 +138,76 @@ att_est_ang_vel_only = np.zeros(( 3, samples ))
 att_est_ang_vel_only_qtr = np.zeros(( 4, samples ))
 att_est_ang_vel_only_err = np.zeros(( 4, samples ))
 
-att_est_ang_vel_only[:, 0] = sc_angvel.ohmBN 
-att_est_ang_vel_only_qtr[:, 0] = sc_angvel.attBN 
+att_est_ang_vel_only[:, 0] = sc_angvel.ohmBN
+att_est_ang_vel_only_qtr[:, 0] = sc_angvel.attBN
 
 # ===========================================================================
 # Actual dynamics simulation below.
 # ===========================================================================
 
 while now < duration:
-    
+
     # Store spacecraft states.
     states_pos[:, n] = sc.states[0:3]
     states_ohmBN[:, n] = sc.ohmBN
     states_qtrBN[:, n] = sc.attBN.qtr
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
-    
-    # Compute reference-to-inertial omegas and attitudes. 
+
+    # Compute reference-to-inertial omegas and attitudes.
     ohmRN = -initial_omega
     attRN = QTR( dcm = sc.get_hill_frame().T ) # RTN2ECI
-    
+
     # Compute body-to-reference (controller error) omegas and attitudes.
     ohmBR = sc.ohmBN - ohmRN
     qtrBR = sc.attBN / attRN # Quaternion multiplication.
-    
+
     # Represent as short-only rotation for qtrBR.
     # Very important for the controller!
     if qtrBR[0] < 0.0:
         qtrBR.qtr = -1 * qtrBR.qtr
-    
+
     # Store body-to-reference (controller error) omegas and attitudes.
     states_ohmBR[:, n] = ohmBR
     states_qtrBR[:, n] = qtrBR
-    
+
     # Sample DCM for plotting triads later on.
     if (now >= sample_trigger_count):
         states_pos_sampled[:, nBig] = sc.states[0:3]
         states_dcm_sampled[:, :, nBig] = sc.attBN.dcm
         sample_trigger_count += sample_trigger_interval
         nBig += 1
-    
+
     # Initialize total torques
     pert_torque = np.zeros(3)
     ctrl_torque = np.zeros(3)
-        
+
     if bool_enable_perturbations:
-        
+
         # Compute gravity gradient perturbation torques.
         gTorque = perturbations.compute_gravity_gradient_torque(
             sc.GM, sc.attBN.dcm.T @ sc.states[0:3], sc.inertia)
-        
+
         # Compute magnetic field perturbation torques.
         mTorque = perturbations.compute_magnetic_torque_component(
             current_time, sc.states[0:3], sc.attBN)
-        
+
         # Compute solar radiation pressure perturbation torques.
         sTorque = perturbations.compute_solar_torque_component(
             current_time, sc.states[0:3], sc.attBN)
-        
+
         # Add to total torques
         pert_torque += (gTorque + mTorque + sTorque)
-    
+
         # Store the computed perturbation torques.
         states_gtorq[:, n] = gTorque
         states_mtorq[:, n] = mTorque
         states_storq[:, n] = sTorque
-    
+
     # Compute controller torque using state feedback.
     if bool_enable_active_control:
         ctrl_gyro_terms = 2 * np.cross(ohmBR, sc.inertia) @ sc.ohmBN
         ctrl_torque = K_attBR * qtrBR[1:] + K_ohmBR * ohmBR + ctrl_gyro_terms
-    
+
     # Propagate the attitude and the angular velocity
     sc.propagate_orbit(timestep)
     sc.propagate_attitude(timestep, torque = pert_torque + ctrl_torque )
@@ -260,7 +260,7 @@ while now < duration:
         att_err_dcm = gt_rot @ dcm_att_estimate.T
         att_err_qtr = QTR(dcm = att_err_dcm)
 
-        # qtr_att_estimate_conjugate = [ qtr_att_estimate.qtr[0], 
+        # qtr_att_estimate_conjugate = [ qtr_att_estimate.qtr[0],
         #                               -qtr_att_estimate.qtr[1],
         #                               -qtr_att_estimate.qtr[2],
         #                               -qtr_att_estimate.qtr[3]]
@@ -278,7 +278,7 @@ while now < duration:
         # print("Attitude error (from QTR): ", att_err_qtr_direct.qtr)
 
         att_est_qtr_att_err[:, n] = att_err_qtr.qtr
-    
+
     # Update simulation time and calendar time
     current_time = current_time + datetime.timedelta(seconds = timestep)
     now += timestep
