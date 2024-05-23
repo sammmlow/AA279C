@@ -279,6 +279,10 @@ for i, phi in enumerate(phi_arr):
                 "Quaternion application failed: " + \
                 f"\nStruct: {test_vector_QTR_stuct}" + \
                 f"\nManual: {test_vector_QTR}"
+            assert np.allclose(test_vector_QTR_stuct, test_vector_DCM), \
+                "Quaternion application failed: " + \
+                f"\nStruct: {test_vector_QTR_stuct}" + \
+                f"\nDCM: {test_vector_DCM}"
 
             test_vector_QTR_small = qtr_apply(qtrBN_small, test_vector)
             test_vector_QTR_diff = test_vector_QTR - test_vector_QTR_small
@@ -307,6 +311,12 @@ for i, phi in enumerate(phi_arr):
             # Test vector
             test_vector_MRP = mrpBN_struct.apply(test_vector)
             test_vector_MRP_small = mrpBN_small_struct.apply(test_vector)
+
+            assert np.allclose(test_vector_MRP, test_vector_DCM), \
+                "MRP application failed: " + \
+                f"\nMRP: {test_vector_MRP}" + \
+                f"\nDCM: {test_vector_DCM}"
+
             test_vector_MRP_diff = test_vector_MRP - test_vector_MRP_small
             test_vector_MRP_dot = np.dot(
                 test_vector_MRP / np.linalg.norm(test_vector_MRP),
