@@ -41,6 +41,7 @@ sensors = {
 test_vector = np.ones(3) / np.sqrt(3)
 
 all_angles = np.zeros((len(sensors), n_samples))
+sample_angles = np.zeros((len(sensors), n_samples))
 
 for sensor_num, (sensor_name, sensor_params) in enumerate(sensors.items()):
     print("Sensor: ", sensor_name)
@@ -49,11 +50,13 @@ for sensor_num, (sensor_name, sensor_params) in enumerate(sensors.items()):
     print()
     
     uvg_sensor = uvg.UnitVecGaussian(
-        mean_angle = sensor_params["mean_angle"] * np.pi / 180,
-        std_dev_angle = sensor_params["std_dev_angle"] * np.pi / 180
+        mean_angle = np.deg2rad(sensor_params["mean_angle"]),
+        std_dev_angle = np.deg2rad(sensor_params["std_dev_angle"])
     )
     
-    samples = uvg_sensor.sample(n_samples)
+    samples, sample_u, sample_ang = uvg_sensor.sample(n_samples, 
+                                                      return_axis_angle = True)
+    sample_angles[sensor_num, :] = sample_ang
     
     for i in range(n_samples):
         sample = samples[i]
@@ -74,38 +77,51 @@ for sensor_num, (sensor_name, sensor_params) in enumerate(sensors.items()):
 
 
 # Plot the results
+def plot_single_hist_box(angles, sensors_dict, angle_name, 
+                         angle_xlabel = "Angle Induced by Noise (degrees)",
+                         show_lower_std_dev = False):
+    """
+    Plot a histogram and box plot of the angles induced by the noise for each
+    sensor.
+    """
+    for sensor_num, (sensor_name, sensor_params) in enumerate(sensors_dict.items()):
+        fig, axes = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
 
-for sensor_num, (sensor_name, sensor_params) in enumerate(sensors.items()):
-    fig, axes = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
-
-    # Top plot is the histogram of the angles
-    axes[0].hist(all_angles[sensor_num], bins = n_bins, label="Sampled Noise")
-    axes[0].axvline(sensor_params["mean_angle"], color = "k", linestyle = "--",
-                label="Prescribed Mean Angle")
-    axes[0].axvline(sensor_params["mean_angle"] + sensor_params["std_dev_angle"], 
-                color = "r", linestyle = "--",
-                label="Mean Angle + Std Dev")
-    
-    if sensor_params["mean_angle"] - sensor_params["std_dev_angle"] > 0:
-        axes[0].axvline(sensor_params["mean_angle"] - sensor_params["std_dev_angle"],
-                    color = "r", linestyle = "--",
-                    label="Mean Angle - Std Dev")
+        # Top plot is the histogram of the angles
+        axes[0].hist(angles[sensor_num], bins = n_bins, label="Sampled Noise")
+        axes[0].axvline(sensor_params["mean_angle"], color = "k", linestyle = "--",
+                    label="Prescribed Mean Angle")
+        axes[0].axvline(sensor_params["mean_angle"] + sensor_params["std_dev_angle"], 
+                    color = "tab:orange", linestyle = "--",
+                    label="Mean Angle + Std Dev")
         
-    axes[0].legend()
-    axes[0].set_title(sensor_name)
-    # axes[0].set_xlabel("Angle Induced by Noise (degrees)")
-    axes[0].set_ylabel("Frequency")
+        lower_std = sensor_params["mean_angle"] - sensor_params["std_dev_angle"]
+        if (lower_std > 0) or show_lower_std_dev:
+            axes[0].axvline(sensor_params["mean_angle"] - sensor_params["std_dev_angle"],
+                        color = "tab:orange", linestyle = "-.",
+                        label="Mean Angle - Std Dev")
+            
+        axes[0].legend()
+        axes[0].set_title(sensor_name)
+        # axes[0].set_xlabel("Angle Induced by Noise (degrees)")
+        axes[0].set_ylabel("Frequency")
 
-    # Bottom plot is the box plot of the angles (oriented horizontally)
-    # Thin plot as not to take up too much space
-    axes[1].boxplot(all_angles[sensor_num], vert = False)
-    axes[1].set_xlabel("Angle Induced by Noise (degrees)")
-    axes[1].set_yticks([])
+        # Bottom plot is the box plot of the angles (oriented horizontally)
+        # Thin plot as not to take up too much space
+        axes[1].boxplot(angles[sensor_num], vert = False)
+        axes[1].set_xlabel(angle_xlabel)
+        axes[1].set_yticks([])
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    if show_plots:
-        plt.show()
+        if show_plots:
+            plt.show()
 
-    fig.savefig(file_path + sensor_name + "_hist_box.png", 
-                dpi = dpi, bbox_inches = bbox_inches)
+        fig.savefig(file_path + sensor_name + angle_name + "_hist_box.png", 
+                    dpi = dpi, bbox_inches = bbox_inches)
+
+
+plot_single_hist_box(all_angles, sensors, "noise_in_vectorspace")
+plot_single_hist_box(np.rad2deg(sample_angles), sensors, "direct_noise_on_angle",
+                     angle_xlabel = "Sampled Angles (degrees)",
+                     show_lower_std_dev = True)
