@@ -254,10 +254,12 @@ for i, phi in enumerate(phi_arr):
 
             # Vector error magnitudes and angle magnitudes.
             dcm_vec_mag_error[i, j, k] = np.linalg.norm(test_vector_DCM_diff)
-            if np.isclose(test_vector_DCM_dot, 1.0):
-                dcm_vec_ang_error[i, j, k] = 0
-            else:
-                dcm_vec_ang_error[i, j, k] = np.arccos(test_vector_DCM_dot)
+            # if np.isclose(test_vector_DCM_dot, 1.0):
+            #     dcm_vec_ang_error[i, j, k] = 0
+            # else:
+            #     dcm_vec_ang_error[i, j, k] = np.arccos(test_vector_DCM_dot)
+
+            dcm_vec_ang_error[i, j, k] = np.arccos(test_vector_DCM_dot)
 
             ################
             # QTR
@@ -287,10 +289,11 @@ for i, phi in enumerate(phi_arr):
 
             # Vector error magnitudes and angle magnitudes.
             qtr_vec_mag_error[i, j, k] = np.linalg.norm(test_vector_QTR_diff)
-            if np.isclose(test_vector_QTR_dot, 1.0):
-                qtr_vec_ang_error[i, j, k] = 0
-            else:
-                qtr_vec_ang_error[i, j, k] = np.arccos(test_vector_QTR_dot)
+            # if np.isclose(test_vector_QTR_dot, 1.0):
+            #     qtr_vec_ang_error[i, j, k] = 0
+            # else:
+            #     qtr_vec_ang_error[i, j, k] = np.arccos(test_vector_QTR_dot)
+            qtr_vec_ang_error[i, j, k] = np.arccos(test_vector_QTR_dot)
 
             ################
             # MRP
@@ -312,10 +315,11 @@ for i, phi in enumerate(phi_arr):
 
             # Vector error magnitudes and angle magnitudes.
             mrp_vec_mag_error[i, j, k] = np.linalg.norm(test_vector_MRP_diff)
-            if np.isclose(test_vector_MRP_dot, 1.0):
-                mrp_vec_ang_error[i, j, k] = 0
-            else:
-                mrp_vec_ang_error[i, j, k] = np.arccos(test_vector_MRP_dot)
+            # if np.isclose(test_vector_MRP_dot, 1.0):
+            #     mrp_vec_ang_error[i, j, k] = 0
+            # else:
+            #     mrp_vec_ang_error[i, j, k] = np.arccos(test_vector_MRP_dot)
+            mrp_vec_ang_error[i, j, k] = np.arccos(test_vector_MRP_dot)
 
 # How different are the inferred angle magnitudes from the total angle?
 angle_mag_flat_deg = np.rad2deg(angle_mag.flatten())
