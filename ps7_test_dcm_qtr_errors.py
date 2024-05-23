@@ -9,7 +9,7 @@ import source.attitudes as att
 import source.rotation as rot
 
 
-num_tests = 10
+num_tests = 40
 
 for i in range(num_tests):
     np.random.seed(i)
@@ -23,14 +23,18 @@ for i in range(num_tests):
     dcmBR = dcmRN.T @ dcmBN
 
     qtrBR = att.QTR( dcm = dcmBR )
+    qtrBR.conventionalize()
     qtrBN = att.QTR( dcm = dcmBN )
+    qtrBN.conventionalize()
     qtrRN = att.QTR( dcm = dcmRN )
+    qtrRN.conventionalize()
 
     mrpBR = att.MRP( dcm = dcmBR )
     mrpBN = att.MRP( dcm = dcmBN )
     mrpRN = att.MRP( dcm = dcmRN )
 
     qtrBNoverRN = qtrBN / qtrRN
+    qtrBNoverRN.conventionalize()
     # Convert to numpy to take the difference
     qtrBNoverRN_np = np.array(qtrBNoverRN.qtr)
     qtrBR_np = np.array(qtrBR.qtr)

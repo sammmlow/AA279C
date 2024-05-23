@@ -100,8 +100,8 @@ class QTR:
                        [qC[2], -1*qC[3],    qC[0],    qC[1]],
                        [qC[3],    qC[2], -1*qC[1],    qC[0]]])
         result = np.transpose( qM @ qP )
-        if result[0] < 0.0:
-            result = -1 * result # Ensure short-only rotation
+        # if result[0] < 0.0:
+        #     result = -1 * result # Ensure short-only rotation
         return QTR( qtr = result )
 
     # String ID.
@@ -630,9 +630,9 @@ class MRP:
     def _mrp2dcm(self, mrp):
 
         # Express the MRP with cross-product operator in tilde form.
-        mt = np.array([[0.0, -1*mrp[2], mrp[1]],
-                       [mrp[2], 0.0, -1*mrp[0]],
-                       [-1*mrp[1], mrp[0], 0.0]])
+        mt = np.array([[      0.0, -1*mrp[2],    mrp[1]],
+                       [   mrp[2],       0.0, -1*mrp[0]],
+                       [-1*mrp[1],    mrp[0],       0.0]])
 
         # Now we can form the DCM.
         dcm = 8 * (mt @ mt) - 4 * ( 1 - np.dot(mrp,mrp) ) * mt
