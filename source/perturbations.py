@@ -96,6 +96,61 @@ def compute_magnetic_torque_component(t, pos_eci, att_body2eci,
 
     return torque
 
+
+# Computes magnetic moment torques (body). Rc in principal body.
+def compute_magnetic_direction(t, pos_eci, att_body2eci):
+
+    # Calculate the magnetic field overall strength (dipole)
+    ref_year = 1975
+    curr_year = 2024
+    dyear = curr_year - ref_year
+    g0_1_dot = 25.6 # nT/yr
+    g1_1_dot = 10.0 # nT/yr
+    h1_1_dot = -10.2 # nT/yr
+
+    g0_1 = -30186 + g0_1_dot * dyear # nT
+    g1_1 = -2036 + g1_1_dot * dyear # nT
+    h1_1 = 5735 + h1_1_dot * dyear # nT
+
+    B0_first_order = np.sqrt(g0_1**2 + g1_1**2 + h1_1**2) # nT
+    B0_first_order = B0_first_order * 1E-9 # Convert to T
+    
+    # Compute the magnetic moment dipole of the Earth
+    deg2rad = np.pi / 180.0
+    B_north_lat = 78.6 * deg2rad # Geocentric deg
+    B_north_lon = 289.3 * deg2rad # Geocentric deg
+    
+    # Earth dipole in ECEF
+    m_hat_Earth_x = np.cos(B_north_lat) * np.cos(B_north_lon)
+    m_hat_Earth_y = np.cos(B_north_lat) * np.sin(B_north_lon)
+    m_hat_Earth_z = np.sin(B_north_lat)
+    m_hat_Earth_ecef = np.array([m_hat_Earth_x, m_hat_Earth_y, m_hat_Earth_z])
+    
+    # Earth dipole in ECI. Ignores pole wander (we need ERP files for that)
+    N  = iau1976.nutation( t )
+    S  = iau1976.diurnal( t, N )
+    P  = iau1976.precession( t )
+    Nt = N.transpose()
+    St = S.transpose()
+    Pt = P.transpose()
+    m_hat_Earth_eci = Pt @ Nt @ St @ m_hat_Earth_ecef
+
+    # Calculate the magnetic field strength at the spacecraft location
+    earth_radius = 6378 # km
+    pos_norm = np.linalg.norm( pos_eci )
+    pos_eci_hat = pos_eci / pos_norm
+    Bconstant = B0_first_order * ((earth_radius / pos_norm)**3) # T
+    
+    # Compute magnetic field vector in ECI
+    mEarth_Rc_dot = np.dot(m_hat_Earth_eci, pos_eci_hat)
+    B_modulation = (3* mEarth_Rc_dot * pos_eci_hat - m_hat_Earth_eci)  # ECI
+    B_vec = (Bconstant) * B_modulation
+    
+    # Convert B_vec to body frame
+    B_vec_body = att_body2eci.dcm.T @ B_vec
+
+    return B_vec, B_vec_body
+
 # All vectors in this function should be expressed in ECI frame, units in km.
 def check_if_in_eclipse(pos_eci, sun_direction_eci):
     earth_radius = 6378.140
