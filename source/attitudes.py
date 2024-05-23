@@ -84,8 +84,9 @@ class QTR:
                        [qC[2], -1*qC[3],    qC[0],    qC[1]],
                        [qC[3],    qC[2], -1*qC[1],    qC[0]]])
         result = np.transpose( qM @ qP )
-        if result[0] < 0.0:
-            result = -1 * result # Ensure short-only rotation
+        # if result[0] < 0.0 and not np.isclose(result[0], 0.0):
+        #     # Strict less than zero, not close to zero.
+        #     result = -1 * result # Ensure short-only rotation
         return QTR( qtr = result )
 
     # Quaternion quotient. Note that quaternion quotient is not commutative!
@@ -201,9 +202,24 @@ class QTR:
         self.dcm = dcm
         return self.dcm
 
+    def check_make_short(self):
+        """
+        Use the short rotation for the quaternion.
+        """
+        if self.qtr[0] < 0.0 and not np.isclose(self.qtr[0], 0.0):
+            # Strict less than zero, not close to zero.
+            self.qtr = -1 * self.qtr # Ensure short-only rotation
+
     # Method for ensuring the correct normalisation of a quaternion.
     def normalise(self):
         self.qtr = self.qtr / np.linalg.norm(self.qtr)
+
+    def conventionalize(self):
+        """
+        Conventionalize the quaternion.
+        """
+        self.normalise()
+        self.check_make_short()
 
     # Method for computing the differential equation in quaternion vector
     # form given a quaternion and an angular velocity vector. Note that the
@@ -251,7 +267,7 @@ class QTR:
         return QTR( qtr = np.array([  self.qtr[0], - self.qtr[1],
                                     - self.qtr[2], - self.qtr[3]]) )
 
-    def apply(self, vec):
+    def apply(self, vec, mode="object"):
         """
         Apply the quaternion to a vector.
         [0, v_new] = q * [0, v] * q_conj
@@ -259,10 +275,35 @@ class QTR:
         Note that this could also be implemented with the Rodrigues formula
         to be more efficient, but this is more readable.
         """
-        q = self.qtr
-        q_conj = self.get_conjugate().qtr
-        q_vec = np.array([0, vec[0], vec[1], vec[2]])
-        q_vec_new = q * q_vec * q_conj
+        assert mode in ["object", "frame"], f"Invalid mode: {mode}!"
+        # q = self.qtr
+        # q_conj = self.get_conjugate().qtr
+        # q_vec = np.array([0, *vec])
+
+        q_conj = self.get_conjugate()
+        q_vec = QTR( qtr = np.array([0, *vec]))
+
+        assert isinstance(q_conj, QTR), f"Invalid q_conj: {q_conj}!"
+        assert isinstance(q_vec, QTR), f"Invalid q_vec: {q_vec}!"
+
+        # print("q:      ", self)
+        # print("q_conj: ", q_conj)
+        # print("q_vec:  ", q_vec)
+        # print("first      : ", q_vec * self)
+        # print("first flip : ", self * q_vec)
+        # print("second     : ", q_conj * q_vec)
+        # print("second flip: ", q_vec * q_conj)
+
+        if mode == "object":
+            q_vec_new = q_conj * q_vec * self
+        else:
+            q_vec_new = self * q_vec * q_conj
+
+        assert np.isclose(q_vec_new[0], 0), \
+            f"Invalid quaternion transformation (q[0]): {q_vec_new}!"
+
+        # print("q_vec_new: ", q_vec_new)
+
         return q_vec_new[1:]
 
 
