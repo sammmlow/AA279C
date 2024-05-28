@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from source import perturbations
-# from source import ephemeris
+from source import ephemeris
 from source.spacecraft import Spacecraft
 from source.attitudes import QTR #, MRP
 import source.attitude_estimation as att_est
@@ -128,6 +128,20 @@ print("Gyro drift: ", gyro_drift)
 gyro_noise_uvg = uvg.UnitVecGaussian(
     mean_angle = np.deg2rad(0.2),
     std_dev_angle = np.deg2rad(gyro_drift)
+)
+
+# ===========================================================================
+# Sun Sensor and Magnetometer Noise...
+# ===========================================================================
+
+sun_sensor_noise_uvg = uvg.UnitVecGaussian(
+    mean_angle = np.deg2rad(0.5),
+    std_dev_angle = np.deg2rad(2.5)
+)
+
+magnetometer_noise_uvg = uvg.UnitVecGaussian(
+    mean_angle = np.deg2rad(1),
+    std_dev_angle = np.deg2rad(2.5)
 )
 
 # ===========================================================================
@@ -273,7 +287,24 @@ while now < duration:
     att_est_ang_vel_only_qtr[:, n] = sc_angvel.attBN.qtr
     att_est_ang_vel_only_err[:, n] = ang_vel_only_att_err_qtr.qtr
 
+    # SUN SENSOR AND MAGNETOMETER
     if bool_use_statistical_estimation is not None:
+
+        # Get the direction vector to the sun.
+        sun_pos_eci = ephemeris.compute_sun_position_eci( current_time )
+        sun_direction_eci = sun_pos_eci / np.linalg.norm(sun_pos_eci)
+        sun_direction_body = sc.attBN.dcm.T @ sun_direction_eci
+
+        # Get the magnetic field vector.
+        # mag_vec_body, mag_vec_eci = ephemeris.compute_magnetic_direction(
+        #     current_time, sc.states[0:3], sc.attBN )
+
+        # Combine the sun and magnetic field vectors.
+        # sun_mag_vec_body = np.concatenate((sun_direction_body, mag_vec_body))
+        # sun_mag_vec_eci = np.concatenate((sun_direction_eci, mag_vec_eci))
+
+        #########################
+
 
         # Get the star measurements.
         gt_rot = sc.attBN.dcm.T # i.e., from ECI to body frame.
