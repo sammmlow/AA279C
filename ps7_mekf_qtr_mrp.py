@@ -11,6 +11,8 @@ file_path = "figures/ps7/PS7-Errors-WithPertModelled-"
 catalog = np.genfromtxt(
     "hipparcos_star_catalog_solutions_downselected_10.txt", delimiter=' ')
 
+numStars = 10 # Hardcoded.
+
 # This script is an attempt at creating an MEKF routine using quaternions as
 # the absolute attitude and MRPs as the delta error attitude to be updated
 # during the measurement update. The rationale is that MRPs are "twice" as
@@ -96,7 +98,7 @@ def mekf_meas_update(
     
     # Update the quaternion in the spacecraft model by correcting with dMRP.
     mrps = MRP( mrp = updated_mean[0:3] )
-    updated_qtr = QTR( dcm = mrps.dcm.T @ sc_model.attBN.dcm )
+    updated_qtr = QTR( dcm = mrps.dcm @ sc_model.attBN.dcm )
     sc_model.attBN = updated_qtr.normalise()
     
     # Generate postfit measurements now
@@ -160,8 +162,8 @@ errors_qtrBN      = np.zeros(( 4, samples ))  # NOT part of the state
 errors_mrpErrorBN = np.zeros(( 3, samples ))  # Part of the state
 history_est_ohm_bias = np.zeros(( 3, samples ))  # Part of the state
 
-prefit_samples = np.zeros(( 2, 10 * samples ))
-posfit_samples = np.zeros(( 2, 10 * samples ))
+prefit_samples = np.zeros(( 2, numStars * samples ))
+posfit_samples = np.zeros(( 2, numStars * samples ))
 
 covariance = np.zeros(( 9, 9, samples + 1 ))  # Full history
 
@@ -242,7 +244,7 @@ while now < duration:
     [sc_model, updated_cov] = mekf_time_update(
         sc_model, timestep, ctrl_torque, pert_torque, current_cov, Q)
     
-    # Generate a bunch of noisy ground truth measurements. For simplicity,
+    # Generate a batch of noisy ground truth measurements. For simplicity,
     # we'll just generate an omega measurement for each star tracker meas.
     k = 0
     for star in catalog:
@@ -250,8 +252,12 @@ while now < duration:
         true_star_N = star[:3]
         true_omega_BN = sc.ohmBN
         
+        # Modelled inertial to body DCM and body to sensor DCM
+        dcm_N2B = sc_model.attBN.dcm.T
+        dcm_B2S = dcm_S2B.T
+        
         noisy_omega_BN = make_a_noisy_dcm() @ true_omega_BN + omega_bias
-        noisy_star_S = make_a_noisy_dcm() @ true_star_N
+        noisy_star_S = make_a_noisy_dcm() @ dcm_B2S @ dcm_N2B @ true_star_N
         
         current_mean_mrp = np.zeros(3)
         current_mean_ohm = sc_model.ohmBN
@@ -274,8 +280,8 @@ while now < duration:
             R)
         
         # Save prefit and postfit samples
-        prefit_samples[:, 10 * n + k] = pre
-        posfit_samples[:, 10 * n + k] = post
+        prefit_samples[:, numStars * n + k] = pre
+        posfit_samples[:, numStars * n + k] = post
         k += 1
         
     
