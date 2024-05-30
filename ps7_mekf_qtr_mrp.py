@@ -96,8 +96,8 @@ def mekf_meas_update(
     
     # Update the quaternion in the spacecraft model by correcting with dMRP.
     mrps = MRP( mrp = updated_mean[0:3] )
-    updated_qtr = QTR( dcm = mrps.dcm @ sc_model.attBN.dcm )
-    sc_model.attBN = updated_qtr
+    updated_qtr = QTR( dcm = mrps.dcm.T @ sc_model.attBN.dcm )
+    sc_model.attBN = updated_qtr.normalise()
     
     # Generate postfit measurements now
     post_dcm_N2B = sc_model.attBN.dcm.T
@@ -173,7 +173,7 @@ covariance[:, :, 0] = init_covariance
 Q = np.diag([1E-8] * 9)
 
 # Some arbitrary measurement noise? Match the noise source below.
-R = np.diag([0.001 * np.pi / 180.0] * 3 + [0.00001] * 3)
+R = np.diag([0.1 * np.pi / 180.0] * 3 + [0.0001] * 3)
 
 # Create a state that keeps track of estimated omega biases (because the
 # current spacecraft object doesn't have a way to store it right now...)
@@ -188,7 +188,7 @@ from source.rotation import dcmX, dcmY, dcmZ
 noise_deg = 0.1 # degrees
 noise_rad = 0.1 * np.pi / 180.0
 
-omega_bias = np.zeros(3) # 0.0001 * np.ones(3) # rad/s
+omega_bias = 0.0001 * np.ones(3) # rad/s
 
 def make_a_noisy_dcm():
     x = dcmX( np.random.normal(0.0, noise_rad) )
