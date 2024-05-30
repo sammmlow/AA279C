@@ -12,6 +12,7 @@ catalog = np.genfromtxt(
     "hipparcos_star_catalog_solutions_downselected_10.txt", delimiter=' ')
 
 numStars = 10 # Hardcoded.
+h_spy_plot = True
 
 # This script is an attempt at creating an MEKF routine using quaternions as
 # the absolute attitude and MRPs as the delta error attitude to be updated
@@ -70,6 +71,7 @@ def mekf_time_update(
 # the same time stamp.
 def mekf_meas_update(
         sc_model, mean, cov, yMeas_Cat_S, yModel_Cat_N, wMeas_B, dcm_S2B, R):
+    global h_spy_plot, file_path
     
     yMeas_S = yMeas_Cat_S[:, 0:3].T
     yModel_N = yModel_Cat_N[:, 0:3].T
@@ -94,16 +96,39 @@ def mekf_meas_update(
     H_zeros = np.zeros((3,3))
     H_zerosN = np.zeros((3 * numStars, 3))
     H = np.block([[H_mrp, H_zerosN, H_zerosN], [H_zeros, H_eye, H_eye]])
+    # print(f"H: {H.shape}")
+
+    if h_spy_plot:
+        # Global parameter
+        fig, ax = plt.subplots()
+        ax.spy(H, markersize=1)
+        ax.set_title("Spy plot of the sensitivity matrix")
+        plt.show()
+        fig.savefig(file_path + 'HMatSpy.png', dpi=200, bbox_inches='tight')
+
+        h_spy_plot = False
     
     # Full residual vector
     prefit_y = norm(yMeas_B - yModel_B, 2)
     prefit_w = norm(wMeas_B - wModel_B, 2)
     
-    
+    # print(f"yMeas_B: {yMeas_B.shape}")
+    # print(f"yModel_B: {yModel_B.shape}")
+    # print(f"wMeas_B: {wMeas_B.shape}")
+    # print(f"wModel_B: {wModel_B.shape}")
+
+    # print(f"prefit_y: {prefit_y.shape}")
+    # print(f"prefit_w: {prefit_w.shape}")
     
     resd_i = np.concatenate([ (yMeas_B - yModel_B).reshape(30),
                               (wMeas_B - wModel_B) ])
     prefit = np.array([ prefit_y, prefit_w ])
+
+    # print(f"resd_i: {resd_i.shape}")
+    # print(f"prefit: {prefit.shape}")
+
+    # print(f"R: {R.shape}")
+    # print(f"cov: {cov.shape}")
     
     # H is (3n + 3) x 9
     
@@ -126,7 +151,34 @@ def mekf_meas_update(
     postfit = np.array([ norm(yMeas_B - post_yModel_B),
                          norm(wMeas_B - post_wModel_B) ])
     
-    return [sc_model, updated_mean, updated_cov, prefit, postfit]
+    # Weight by the Mahalonobis distance (R inverse is the information matrix)
+    # res = (meas - model).T @ Rinv @ (meas - model)
+    Rinv = np.linalg.inv(R)
+    lenR = R.shape[0]
+    RinvStar = Rinv[0:(lenR - 3), 0:(lenR - 3)]
+    RinvGyro = Rinv[(lenR - 3):, (lenR - 3):]
+    # print(f"Rinv: {Rinv.shape}")
+    # print(f"RinvStar: {RinvStar.shape}")
+    # print(f"RinvGyro: {RinvGyro.shape}")
+
+    prefit_star_diff = (yMeas_B - yModel_B).reshape(30)
+    post_star_diff = (yMeas_B - post_yModel_B).reshape(30)
+
+    prefit_mahal_star = prefit_star_diff.T @ RinvStar @ prefit_star_diff
+    postfit_mahal_star = post_star_diff.T @ RinvStar @ post_star_diff
+
+    prefit_gyro_diff = (wMeas_B - wModel_B)
+    post_gyro_diff = (wMeas_B - post_wModel_B)
+
+    prefit_mahal_gyro = prefit_gyro_diff.T @ RinvGyro @ prefit_gyro_diff
+    postfit_mahal_gyro = post_gyro_diff.T @ RinvGyro @ post_gyro_diff
+
+    # Stack the Mahalonobis distances
+    prefit_mahal = np.array([ prefit_mahal_star, prefit_mahal_gyro ])
+    postfit_mahal = np.array([ postfit_mahal_star, postfit_mahal_gyro ])
+    
+    return [sc_model, updated_mean, updated_cov, 
+            prefit, postfit, prefit_mahal, postfit_mahal]
 
 # ===========================================================================
 # Will be using the spacecraft as a container for my "state vector"...
@@ -180,6 +232,9 @@ history_est_ohm_bias = np.zeros(( 3, samples ))  # Part of the state
 
 prefit_samples = np.zeros(( 2, samples ))
 posfit_samples = np.zeros(( 2, samples ))
+
+prefit_samples_mahalonobis = np.zeros(( 2, samples ))
+posfit_samples_mahalonobis = np.zeros(( 2, samples ))
 
 covariance = np.zeros(( 9, 9, samples + 1 ))  # Full history
 
@@ -284,7 +339,8 @@ while now < duration:
         current_mean_bias])
     
     # Perform the MEKF measurement update.
-    [sc_model, updated_mean, updated_cov, pre, post] = mekf_meas_update(
+    [sc_model, updated_mean, updated_cov, pre, post, pre_mahal, post_mahal] = \
+    mekf_meas_update(
         sc_model,
         current_mean,
         current_cov,
@@ -297,6 +353,9 @@ while now < duration:
     # Save prefit and postfit samples
     prefit_samples[:, n] = pre
     posfit_samples[:, n] = post
+
+    prefit_samples_mahalonobis[:, n] = pre_mahal
+    posfit_samples_mahalonobis[:, n] = post_mahal
         
     # At this point, extract out the error MRPs for plotting.
     current_mean_mrp = updated_mean[0:3]
@@ -411,9 +470,10 @@ plt.savefig(file_path + 'ResdOmega.png', dpi=200, bbox_inches='tight')
 
 # Plot histograms of the residuals
 print("Plotting histograms of the residuals")
+nbins = 10
 plt.figure()
-plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
-plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
+plt.hist(prefit_samples[0,:], bins=nbins, alpha=0.5, density=True)
+plt.hist(posfit_samples[0,:], bins=nbins, alpha=0.5, density=True)
 plt.grid('on')
 plt.xlabel('Star tracker residuals (unitless)'); plt.ylabel('Estimated PDF')
 plt.legend(["Prefit", "Postfit"])
@@ -426,3 +486,21 @@ plt.grid('on')
 plt.xlabel('Angular velocity meas residuals (rad/s)'); plt.ylabel('Estimated PDF')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
+
+# Repeat the histograms for Mahalonobis distances version
+print("Plotting histograms of the Mahalonobis residuals")
+plt.figure()
+plt.hist(prefit_samples_mahalonobis[0,:], bins=nbins, alpha=0.5, density=True)
+plt.hist(posfit_samples_mahalonobis[0,:], bins=nbins, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Covariance weighted star tracker residuals (unitless)'); plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistStarResMahal.png', dpi=200, bbox_inches='tight')
+
+plt.figure()
+plt.hist(prefit_samples_mahalonobis[1,:], bins=50, alpha=0.5, density=True)
+plt.hist(posfit_samples_mahalonobis[1,:], bins=50, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Covariance weighted angular velocity meas residuals (rad/s)'); plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistOmegaResMahal.png', dpi=200, bbox_inches='tight')
