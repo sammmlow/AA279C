@@ -69,7 +69,10 @@ def mekf_time_update(
 # this function assumes we have both star tracker and gyro information at 
 # the same time stamp.
 def mekf_meas_update(
-        sc_model, mean, cov, yMeas_S, yModel_N, wMeas_B, dcm_S2B, R):
+        sc_model, mean, cov, yMeas_Cat_S, yModel_Cat_N, wMeas_B, dcm_S2B, R):
+    
+    yMeas_S = yMeas_Cat_S[:, 0:3].T
+    yModel_N = yModel_Cat_N[:, 0:3].T
     
     # Compute modelled measurements for unit vectors
     dcm_N2B = sc_model.attBN.dcm.T
@@ -82,14 +85,27 @@ def mekf_meas_update(
     wModel_B = sc_model.ohmBN + wBias_B # Modelled meas uses bias est
     
     # Compute the sensitivity model (SUPER DUPER CREDITS TO DANIEL NEAMATI)
-    H_mrp = 4 * make_skew_symmetric(yModel_B)
+    H_mrp = np.zeros((3 * numStars, 3))
+    for n in range(numStars):
+        yModel_B_i = yModel_B[:, n]
+        H_mrp[3*n:3+3*n, 0:3] = 4 * make_skew_symmetric(yModel_B_i)
+    
     H_eye = np.identity(3)
     H_zeros = np.zeros((3,3))
-    H = np.block([[H_mrp, H_zeros, H_zeros], [H_zeros, H_eye, H_eye]])
+    H_zerosN = np.zeros((3 * numStars, 3))
+    H = np.block([[H_mrp, H_zerosN, H_zerosN], [H_zeros, H_eye, H_eye]])
     
     # Full residual vector
-    resd_i = np.concatenate([ (yMeas_B - yModel_B), (wMeas_B - wModel_B) ])
-    prefit = np.array([ norm(yMeas_B - yModel_B), norm(wMeas_B - wModel_B) ])
+    prefit_y = norm(yMeas_B - yModel_B, 2)
+    prefit_w = norm(wMeas_B - wModel_B, 2)
+    
+    
+    
+    resd_i = np.concatenate([ (yMeas_B - yModel_B).reshape(30),
+                              (wMeas_B - wModel_B) ])
+    prefit = np.array([ prefit_y, prefit_w ])
+    
+    # H is (3n + 3) x 9
     
     # Kalman gain, state mean and cov update.
     K = cov @ H.T @ np.linalg.inv(H @ cov @ H.T + R)
@@ -162,8 +178,8 @@ errors_qtrBN      = np.zeros(( 4, samples ))  # NOT part of the state
 errors_mrpErrorBN = np.zeros(( 3, samples ))  # Part of the state
 history_est_ohm_bias = np.zeros(( 3, samples ))  # Part of the state
 
-prefit_samples = np.zeros(( 2, numStars * samples ))
-posfit_samples = np.zeros(( 2, numStars * samples ))
+prefit_samples = np.zeros(( 2, samples ))
+posfit_samples = np.zeros(( 2, samples ))
 
 covariance = np.zeros(( 9, 9, samples + 1 ))  # Full history
 
@@ -175,7 +191,7 @@ covariance[:, :, 0] = init_covariance
 Q = np.diag([1E-8] * 9)
 
 # Some arbitrary measurement noise? Match the noise source below.
-R = np.diag([0.1 * np.pi / 180.0] * 3 + [0.0001] * 3)
+R = np.diag([0.1 * np.pi / 180.0] * 3 + [0.0001] * (3*numStars))
 
 # Create a state that keeps track of estimated omega biases (because the
 # current spacecraft object doesn't have a way to store it right now...)
@@ -244,47 +260,44 @@ while now < duration:
     [sc_model, updated_cov] = mekf_time_update(
         sc_model, timestep, ctrl_torque, pert_torque, current_cov, Q)
     
-    # Generate a batch of noisy ground truth measurements. For simplicity,
-    # we'll just generate an omega measurement for each star tracker meas.
+    # Generate a noisy angular velocity vector
+    true_omega_BN = sc.ohmBN
+    noisy_omega_BN = make_a_noisy_dcm() @ true_omega_BN + omega_bias
+    
+    # Generate a batch of noisy star tracker measurements.
     k = 0
+    noisy_catalog_S = catalog
     for star in catalog:
-        
-        true_star_N = star[:3]
-        true_omega_BN = sc.ohmBN
-        
-        # Modelled inertial to body DCM and body to sensor DCM
         dcm_N2B = sc_model.attBN.dcm.T
         dcm_B2S = dcm_S2B.T
-        
-        noisy_omega_BN = make_a_noisy_dcm() @ true_omega_BN + omega_bias
+        true_star_N = star[:3]
         noisy_star_S = make_a_noisy_dcm() @ dcm_B2S @ dcm_N2B @ true_star_N
+        noisy_catalog_S[k, 0:3] = noisy_star_S
         
-        current_mean_mrp = np.zeros(3)
-        current_mean_ohm = sc_model.ohmBN
-        current_mean_bias = est_ohm_bias
-        
-        current_mean = np.concatenate([
-            current_mean_mrp,
-            current_mean_ohm,
-            current_mean_bias])
-        
-        # Perform the MEKF measurement update.
-        [sc_model, updated_mean, updated_cov, pre, post] = mekf_meas_update(
-            sc_model,
-            current_mean,
-            current_cov,
-            noisy_star_S,
-            true_star_N,
-            noisy_omega_BN,
-            dcm_S2B,
-            R)
-        
-        # Save prefit and postfit samples
-        prefit_samples[:, numStars * n + k] = pre
-        posfit_samples[:, numStars * n + k] = post
-        k += 1
-        
+    current_mean_mrp = np.zeros(3)
+    current_mean_ohm = sc_model.ohmBN
+    current_mean_bias = est_ohm_bias
     
+    current_mean = np.concatenate([
+        current_mean_mrp,
+        current_mean_ohm,
+        current_mean_bias])
+    
+    # Perform the MEKF measurement update.
+    [sc_model, updated_mean, updated_cov, pre, post] = mekf_meas_update(
+        sc_model,
+        current_mean,
+        current_cov,
+        noisy_catalog_S,
+        catalog,
+        noisy_omega_BN,
+        dcm_S2B,
+        R)
+        
+    # Save prefit and postfit samples
+    prefit_samples[:, n] = pre
+    posfit_samples[:, n] = post
+        
     # At this point, extract out the error MRPs for plotting.
     current_mean_mrp = updated_mean[0:3]
     current_mean_ohm = updated_mean[3:6]
