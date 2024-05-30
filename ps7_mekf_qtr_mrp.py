@@ -341,7 +341,7 @@ for i, ax in enumerate(axes1b):
     for i in range(number_of_orbits + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
-fig1b.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
+fig1b.savefig(file_path + 'OmegaBiases.png', dpi=200, bbox_inches='tight')
 
 print("Plotting error of the updated reference quaternions")
 fig2, axes2 = plt.subplots(nrows=4, ncols=1, figsize=(7, 6))
