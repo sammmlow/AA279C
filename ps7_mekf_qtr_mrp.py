@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 
-file_path = "figures/ps7/PS7-Errors-WithPertModelled-"
+file_path = "figures/ps8/PS8-Errors-WithPertModelled-"
 
 # Copy over the star catalog into a matrix.
 catalog = np.genfromtxt(
@@ -312,7 +312,7 @@ labels = ['$\omega_x$', '$\omega_y$', '$\omega_z$']
 for i, ax in enumerate(axes1):
     ax.plot( timeAxis[::skip], errors_ohmBN[i,::skip])
     ax.fill_between( timeAxis,
-                     np.sqrt(covariance[3+i,3+i,:-1]),
+                      np.sqrt(covariance[3+i,3+i,:-1]),
                      -np.sqrt(covariance[3+i,3+i,:-1]),
                      alpha=0.2)
     ax.set_ylabel(labels[i] + ' [rad/s]')
@@ -322,7 +322,7 @@ for i, ax in enumerate(axes1):
     for i in range(number_of_orbits + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
-plt.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
+fig1.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
 
 print("Plotting angular velocity bias estimation")
 fig1b, axes1b = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
@@ -330,7 +330,7 @@ labels = ['$\omega_{b,x}$', '$\omega_{b,y}$', '$\omega_{b,z}$']
 for i, ax in enumerate(axes1b):
     ax.plot( timeAxis[::skip], history_est_ohm_bias[i,::skip])
     ax.fill_between( timeAxis,
-                     np.sqrt(covariance[6+i,6+i,:-1]),
+                      np.sqrt(covariance[6+i,6+i,:-1]),
                      -np.sqrt(covariance[6+i,6+i,:-1]),
                      alpha=0.2)
     ax.set_ylabel(labels[i] + ' [rad/s]')
@@ -341,7 +341,7 @@ for i, ax in enumerate(axes1b):
     for i in range(number_of_orbits + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
-plt.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
+fig1b.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
 
 print("Plotting error of the updated reference quaternions")
 fig2, axes2 = plt.subplots(nrows=4, ncols=1, figsize=(7, 6))
@@ -355,7 +355,7 @@ for i, ax in enumerate(axes2):
     for i in range(number_of_orbits + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
-plt.savefig(file_path + 'QTR.png', dpi=200, bbox_inches='tight')
+fig2.savefig(file_path + 'QTR.png', dpi=200, bbox_inches='tight')
 
 print("Plotting estimated error MRP")
 fig3, axes3 = plt.subplots(nrows=3, ncols=1, figsize=(7, 6))
@@ -373,23 +373,43 @@ for i, ax in enumerate(axes3):
     for i in range(number_of_orbits + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
-plt.savefig(file_path + 'ErrMRP.png', dpi=200, bbox_inches='tight')
+fig3.savefig(file_path + 'ErrMRP.png', dpi=200, bbox_inches='tight')
 
 
 # Plot prefit and postfit samples for MRPs
+print("Plotting prefit and postfit samples for MRPs")
 plt.figure()
-plt.plot(prefit_samples[0,:])
-plt.plot(posfit_samples[0,:])
+plt.plot(prefit_samples[0,:], alpha=0.5)
+plt.plot(posfit_samples[0,:], alpha=0.5)
 plt.grid('on')
 plt.xlabel('Samples'); plt.ylabel('Star tracker residuals (unitless)')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'ResdStar.png', dpi=200, bbox_inches='tight')
 
 # Plot prefit and postfit samples for omegas
+print("Plotting prefit and postfit samples for omegas")
 plt.figure()
-plt.plot(prefit_samples[1,:])
-plt.plot(posfit_samples[1,:])
+plt.plot(prefit_samples[1,:], alpha=0.5)
+plt.plot(posfit_samples[1,:], alpha=0.5)
 plt.grid('on')
 plt.xlabel('Samples'); plt.ylabel('Angular velocity meas residuals (rad/s)')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'ResdOmega.png', dpi=200, bbox_inches='tight')
+
+# Plot histograms of the residuals
+print("Plotting histograms of the residuals")
+plt.figure()
+plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
+plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Star tracker residuals (unitless)'); plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistStarRes.png', dpi=200, bbox_inches='tight')
+
+plt.figure()
+plt.hist(prefit_samples[1,:], bins=50, alpha=0.5, density=True)
+plt.hist(posfit_samples[1,:], bins=50, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Angular velocity meas residuals (rad/s)'); plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
