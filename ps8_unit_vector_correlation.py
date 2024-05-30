@@ -83,7 +83,7 @@ def solve_ellipse_params(eig_vals, eig_vectors, prob_conf):
     return a_semi_major, b_semi_minor, theta
 
 
-def plot_ellipse_updated(mu, sigma, p_conf, color, ax, lw=2):
+def plot_ellipse_updated(mu, sigma, p_conf, color, ax, lw=2, label=None):
     """
     Change the plotting function from HW 2 to work with this HW
     :param mu: The mean
@@ -102,8 +102,9 @@ def plot_ellipse_updated(mu, sigma, p_conf, color, ax, lw=2):
     # Make the ellipse
     ellipse = Ellipse(
         xy=mu, width=2 * a, height=2 * b, angle=np.rad2deg(t),
-        facecolor=(*color, 0.2), edgecolor=(*color, 1),
-        linewidth=lw, zorder=2)
+        facecolor=(*color, 0.1), edgecolor=(*color, 1),
+        linewidth=lw, zorder=2,
+        label=label)
 
     # Plot the ellipse
     ax.add_patch(ellipse)
@@ -185,12 +186,12 @@ for i in range(len(u_ang_ref)):
               label=f"Unit vector {i + 1}", 
               color=default_colors[i])
 
-# Reset colors
+# Scatter all the samples
 for i in range(len(u_ang_ref)):
     ax.scatter(u_vec_perturbed[i, 0, :], 
                u_vec_perturbed[i, 1, :],
                alpha=0.01,
-               color=default_colors[i],)
+               color=default_colors[i])
 
 # Plot the Gaussian ellipse approximation.
 # Calculate the mean of the perturbed unit vectors
@@ -199,10 +200,25 @@ print("Mean vectors: ")
 print(mean_vectors)
 
 # Plot the Gaussian ellipse approximation
-# Reset colors
 ax.set_prop_cycle(None)
+labeled = False
 for i in range(len(u_ang_ref)):
-    plot_ellipse_updated(mean_vectors[i, :], cov_matrices[i], 0.95, 'k', ax)
+    plot_ellipse_updated(mean_vectors[i, :], cov_matrices[i], 0.95, 'k', 
+                         ax, lw=1, 
+                         label="Estimated Ellipse (95%)" if not labeled else None)
+    labeled = True
+
+# Circularized Gaussian using only perturb_angle_std
+circularized_cov = np.eye(2) * perturb_angle_std**2
+print("Circularized covariance: ")
+print(circularized_cov)
+
+labeled = False
+for i in range(len(u_ang_ref)):
+    plot_ellipse_updated(mean_vectors[i, :], circularized_cov, 0.95, 
+                         'r', ax, lw=1,
+                         label="Circularized (95%)" if not labeled else None)
+    labeled = True
 
 box_lim = 1.2
 ax.set_xlim(-box_lim, box_lim)
