@@ -14,6 +14,8 @@ from source.spacecraft import Spacecraft
 from source.attitudes import QTR, MRP
 from source.rotation import dcmX, dcmY, dcmZ
 
+np.random.seed(seed=1)
+
 file_path = "figures/ps9/PS9-MEKF-"
 
 # Copy over the star catalog into a matrix.
@@ -89,8 +91,7 @@ def time_update( dt, mean, covariance, quaternion, torque, Q ):
     
     omega = mean[3:6] # Angular velocity body-to-inertial.
     STM = compute_stm( mean, dt )
-    initial_mean = np.concatenate([ [0,0,0], mean[3:9] ])
-    updated_mean = STM @ initial_mean
+    updated_mean = STM @ mean
     updated_cov = STM @ covariance @ STM.T + Q
     updated_quaternion = propagate_quaternion( dt, omega, quaternion, torque )
     
@@ -135,39 +136,42 @@ def meas_update( mean, cov, quat, catalog, meas_stars, meas_omega, R ):
     H = np.block([[H_mrp, ZN3, ZN3], [Z3, I3, I3]])
     
     # Compute prefit residual L2-norms,
-    prefit_stars = norm(meas_stars - model_stars, 2)
+    prefit_stars = norm(meas_stars - model_stars, 2) / nStars
     prefit_omega = norm(meas_omega - model_omega, 2)
     prefit = np.array([ prefit_stars, prefit_omega ])
     
-    # Full residual vector
-    residuals = np.concatenate([ (meas_stars - model_stars).reshape(3 * N),
+    # Full residual vector. Transpose before reshape so that the residuals per
+    # unit direction are all contiguous.
+    residuals = np.concatenate([ (meas_stars - model_stars).T.reshape(3 * N),
                                  (meas_omega - model_omega) ])
     
     # Kalman gain, state mean and cov update.
+    I9 = np.identity(9)
     K = cov @ H.T @ np.linalg.inv(H @ cov @ H.T + R)
+    IKH = I9 - K @ H
+    KRK = K @ R @ K.T
     updated_mean = mean + K @ residuals
-    updated_cov = cov - K @ H @ cov
+    updated_cov = IKH @ cov @ IKH.T + KRK
     
     # Update the quaternion in the spacecraft model by correcting with dMRP.
     error_mrps = MRP( mrp = updated_mean[0:3] )
-    updated_quaternion = QTR( dcm = error_mrps.dcm @ quat.dcm )
-    updated_quaternion.normalise()
+    updated_quat = QTR( dcm = error_mrps.dcm.T @ quat.dcm )
     
     # Generate postfit measurements now
-    DCM_N2B_POST = updated_quaternion.dcm.T
+    DCM_N2B_POST = updated_quat.dcm.T
     postfit_model_stars = DCM_N2B_POST @ catalog[:, 0:3].T
     postfit_model_omega = updated_mean[3:6] + updated_mean[6:9]
-    postfit = np.array([ norm(meas_stars - postfit_model_stars, 2),
+    postfit = np.array([ norm(meas_stars - postfit_model_stars, 2) / nStars,
                          norm(meas_omega - postfit_model_omega, 2) ])
     
-    return [updated_mean, updated_cov, updated_quaternion, prefit, postfit]
+    return [updated_mean, updated_cov, updated_quat, prefit, postfit]
 
 
 # ===========================================================================
 # Functions to generate noisy measurements. Use ground truth to generate them.
 # ===========================================================================
 
-noise_rad = 0.00175 # 0.1 degrees
+noise_rad = 0.000175 # 0.01 degrees
 noise_omega = 0.0000175 # 0.001 degrees/s
 
 def make_noisy_dcm():
@@ -177,13 +181,15 @@ def make_noisy_dcm():
     return x @ y @ z
 
 def make_noisy_measurements( catalog, true_quaternion, true_omega, bias ):
-    k, meas_stars, meas_omega = 0, catalog, true_omega
+    k = 0
+    meas_omega = np.zeros(3)
+    meas_stars = np.zeros( np.shape(catalog) )
     for star in catalog:
         DCM_N2B = true_quaternion.dcm.T
-        meas_stars[k, 0:3] = make_noisy_dcm() @ DCM_B2S @ DCM_N2B @ star[:3]
+        meas_stars[k, 0:3] = DCM_B2S @ DCM_N2B @ make_noisy_dcm() @ star[:3]
         k += 1
     add_noise_omega = np.random.normal(0.0, noise_omega)
-    meas_omega = (make_noisy_dcm() @ meas_omega) + add_noise_omega + bias
+    meas_omega = (make_noisy_dcm() @ true_omega) + add_noise_omega + bias
     return [meas_stars, meas_omega]
 
 
@@ -200,7 +206,7 @@ duration = number_of_orbits * period
 now, n, timestep = 0.0, 0, 120.0
 samples = int(duration / timestep)
 
-skip = 1 # Larger skip leads to faster plotting
+skip = 2 # Larger skip leads to faster plotting
 
 timeAxis = np.linspace(0, duration, samples)
 
@@ -231,31 +237,39 @@ covariance_history = np.zeros(( 9, 9, samples + 1 ))  # Full history
 sc = Spacecraft( elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6],
                  inertia = np.diag([4770.398, 6313.894, 7413.202]) )
 
-initial_omega = np.array([0, 0, sc.n])
+initial_omega = -np.array([0, 0, sc.n])
 initial_dcm = sc.get_hill_frame().T  # RTN2ECI
 
-sc.ohmBN = -initial_omega
+sc.ohmBN = initial_omega
 sc.attBN = QTR( dcm = initial_dcm )
 
-true_bias = 0.001 * np.ones(3) # rad/s
+true_bias = 0.0001 * np.ones(3) # rad/s
 
 
 # ===========================================================================
-# Initialize the filter states, covariances, and parameters.
+# Initialize the filter states, covariances, and parameters. The filter has 
+# been (very painstakingly) fine-tuned manually! Exercise caution below!
 # ===========================================================================
 
-mean = np.zeros(9)
-covariance = np.diag([1E-3] * 9)
 quaternion = QTR()
+mean = np.zeros(9)
 
-Q = np.diag([1E-9] * 9)
-R = np.diag([noise_rad] * (3 * nStars) + [noise_omega] * 3)
+# Initialize with some noisy omega plus bias.
+mean[3:6] = make_noisy_dcm() @ initial_omega
 
+# Initial covariance: [Error MRPs, omegas, and omega biases]
+covariance = np.diag([5E-1] * 3 + [9E-8] * 3 + [1E-5] * 3)
 covariance_history[:, :, 0] = covariance
 
+# Manually fine-tuned filter process noise
+Q = np.diag([5E-7] * 3 + [1E-10] * 3 + [1E-10] * 3)
+
+# Manually fine-tuned filter measurement noise
+R = np.diag([5E-3] * (3 * nStars) + [1E-10] * 3)
+
 
 # ===========================================================================
-# Actual dynamics simulation below.
+# Actual dynamics simulation, with the MEKF operations called below.
 # ===========================================================================
 
 while now < duration:
@@ -263,6 +277,7 @@ while now < duration:
     # Initialize total torques
     pert_torque = np.zeros(3)
     ctrl_torque = np.zeros(3)
+    null_torque = np.zeros(3)
         
     # Compute gravity gradient perturbation torques.
     gTorque = perturbations.compute_gravity_gradient_torque(
@@ -279,34 +294,42 @@ while now < duration:
     # Add to total torques
     pert_torque += (gTorque + mTorque + sTorque)
     
-    # Propagate the attitude and the angular velocity
+    # Propagate the true spacecraft attitude and the angular velocity
     sc.propagate_orbit(timestep)
     sc.propagate_attitude(timestep, torque = pert_torque + ctrl_torque )
     
     # Perform the MEKF time update
-    [mean, cov, quaternion] = time_update(
-        timestep, mean, covariance, quaternion, pert_torque + ctrl_torque, Q )
+    mean, covariance, quaternion = time_update(
+        timestep, mean, covariance, quaternion, null_torque, Q )
     
     # Generate noisy measurements of stars and angular velocities.
-    [meas_stars, meas_omega] = make_noisy_measurements(
+    meas_stars, meas_omega = make_noisy_measurements(
         catalog, sc.attBN, sc.ohmBN, true_bias )
     
     # Perform the MEKF measurement update
-    [mean, covariance, quaternion, prefit, postfit] = meas_update(
+    mean, covariance, updated_quaternion, prefit, postfit = meas_update(
         mean, covariance, quaternion, catalog, meas_stars, meas_omega, R )
-        
+    
     # Save prefit and postfit samples
     prefit_samples[:, n] = prefit
     posfit_samples[:, n] = postfit
+    
+    # Compute the quaternion error
+    quaternion_error = updated_quaternion / sc.attBN
+    quaternion_error.conventionalize()
     
     # Record state errors for plotting later on.
     errors_mrp[:, n]  = mean[0:3]
     errors_ohm[:, n]  = mean[3:6] - sc.ohmBN
     errors_bias[:, n] = mean[6:9] - true_bias
-    errors_qtr[:, n]  = quaternion / sc.attBN
+    errors_qtr[:, n]  = quaternion_error
     
     # Record covariance in covariance history.
     covariance_history[:, :, n] = covariance
+    quaternion = updated_quaternion
+    
+    # Reset the error MRPs to zero.
+    mean = np.concatenate([ [0,0,0], mean[3:9] ])
     
     # Update simulation time and calendar time
     current_time = current_time + datetime.timedelta(seconds = timestep)
@@ -333,7 +356,7 @@ for i, ax in enumerate(axes1):
     ax.grid(True)
     if i == 2:
         ax.set_xlabel('Time [seconds]')
-    for i in range(number_of_orbits + 1):
+    for i in range(int(number_of_orbits) + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
 fig1.savefig(file_path + 'Omegas.png', dpi=200, bbox_inches='tight')
@@ -350,10 +373,11 @@ for i, ax in enumerate(axes1b):
                      -np.sqrt(covariance_history[6+i,6+i,:-1]),
                      alpha=0.2)
     ax.set_ylabel(labels[i] + ' [rad/s]')
+    ax.set_ylim([-0.0003, 0.0003])
     ax.grid(True)
     if i == 2:
         ax.set_xlabel('Time [seconds]')
-    for i in range(number_of_orbits + 1):
+    for i in range(int(number_of_orbits) + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
 fig1b.savefig(file_path + 'OmegaBiases.png', dpi=200, bbox_inches='tight')
@@ -366,10 +390,11 @@ labels = ['$q_0$', '$q_1$', '$q_2$', '$q_3$']
 for i, ax in enumerate(axes2):
     ax.plot( timeAxis[::skip], errors_qtr[i,::skip])
     ax.set_ylabel(labels[i])
+    ax.set_ylim([-1.1, 1.1])
     ax.grid(True)
     if i == 3:
         ax.set_xlabel('Time [seconds]')
-    for i in range(number_of_orbits + 1):
+    for i in range(int(number_of_orbits) + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
 fig2.savefig(file_path + 'QTR.png', dpi=200, bbox_inches='tight')
@@ -389,11 +414,10 @@ for i, ax in enumerate(axes3):
     ax.grid(True)
     if i == 2:
         ax.set_xlabel('Time [seconds]')
-    for i in range(number_of_orbits + 1):
+    for i in range(int(number_of_orbits) + 1):
         ax.axvline(i * period, color='gray', linestyle='--')
 plt.show()
 fig3.savefig(file_path + 'ErrMRP.png', dpi=200, bbox_inches='tight')
-
 
 # Plot prefit and postfit samples for MRPs
 print("Plotting prefit and postfit samples for MRPs")
@@ -415,22 +439,22 @@ plt.xlabel('Samples'); plt.ylabel('Angular velocity meas residuals (rad/s)')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'ResdOmega.png', dpi=200, bbox_inches='tight')
 
-# Plot histograms of the residuals
-print("Plotting histograms of the residuals")
-plt.figure()
-plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
-plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
-plt.grid('on')
-plt.xlabel('Star tracker residuals (unitless)');
-plt.ylabel('Estimated PDF')
-plt.legend(["Prefit", "Postfit"])
-plt.savefig(file_path + 'HistStarRes.png', dpi=200, bbox_inches='tight')
+# # Plot histograms of the residuals
+# print("Plotting histograms of the residuals")
+# plt.figure()
+# plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
+# plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
+# plt.grid('on')
+# plt.xlabel('Star tracker residuals (unitless)');
+# plt.ylabel('Estimated PDF')
+# plt.legend(["Prefit", "Postfit"])
+# plt.savefig(file_path + 'HistStarRes.png', dpi=200, bbox_inches='tight')
 
-plt.figure()
-plt.hist(prefit_samples[1,:], bins=50, alpha=0.5, density=True)
-plt.hist(posfit_samples[1,:], bins=50, alpha=0.5, density=True)
-plt.grid('on')
-plt.xlabel('Angular velocity meas residuals (rad/s)');
-plt.ylabel('Estimated PDF')
-plt.legend(["Prefit", "Postfit"])
-plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
+# plt.figure()
+# plt.hist(prefit_samples[1,:], bins=50, alpha=0.5, density=True)
+# plt.hist(posfit_samples[1,:], bins=50, alpha=0.5, density=True)
+# plt.grid('on')
+# plt.xlabel('Angular velocity meas residuals (rad/s)');
+# plt.ylabel('Estimated PDF')
+# plt.legend(["Prefit", "Postfit"])
+# plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
