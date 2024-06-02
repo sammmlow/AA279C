@@ -17,7 +17,7 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
                      states_storq, states_angle, states_omega,
                      states_pos, states_pos_sampled, states_dcm_sampled,
                      states_quatr_ref = empty, states_omega_ref = empty,
-                     plot_orbit_bool = False ):
+                     plot_orbit_bool = False, states_ctrl = [] ):
     
     # ========================================================================
     # Plot body-to-inertial quaternions.
@@ -111,7 +111,7 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
         plt.hlines(-max_mag_torque, timeAxis[0], timeAxis[-1], colors='r')
         plt.xlabel('Simulation time [sec]')
         plt.ylabel('Magnetic Moment Torque in Principal-Body Axis [N m]')
-        plt.legend(['$M_x$','$M_y$','$M_z$','Max'])
+        plt.legend(['$B_x$','$B_y$','$B_z$','Max'])
     
         # Plot the orbital periods as vertical lines.
         for i in range(number_of_periods + 1):
@@ -228,3 +228,27 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
                                 states_dcm_sampled)
         plt.tight_layout()
         plt.savefig(file_path + 'Orbit3D.png', dpi=200, bbox_inches='tight')
+        
+    # ========================================================================
+    # Plot controller torques
+    # ========================================================================
+    
+    if (states_ctrl.size != 0):
+        
+        print("Plotting torque: controller torque")
+    
+        plt.figure()
+        plt.plot( timeAxis[::skip], states_ctrl[0,::skip] )
+        plt.plot( timeAxis[::skip], states_ctrl[1,::skip] )
+        plt.plot( timeAxis[::skip], states_ctrl[2,::skip] )
+        plt.xlabel('Simulation time [sec]')
+        plt.ylabel('Controller Torque in Principal-Body Axis [N m]')
+        plt.legend(['$M_x$','$M_y$','$M_z$'])
+    
+        # Plot the orbital periods as vertical lines.
+        for i in range(number_of_periods + 1):
+            plt.axvline(i * period, color='gray', linestyle='--')
+    
+        plt.grid()
+        plt.show()
+        plt.savefig(file_path + 'CtrlTorque.png', dpi=200, bbox_inches='tight')
