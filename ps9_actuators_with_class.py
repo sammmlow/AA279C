@@ -18,7 +18,7 @@ a_thr = np.loadtxt("rom/ps9_actuator_thruster_mounting_matrix.csv", delimiter=",
 # Reaction wheel limits
 max_torque_rw = 0.25 # Nm
 min_torque_rw = -0.25 # Nm
-noise_std_rw = 0.01 # Nm
+noise_std_rw = 0.1 # Nm
 
 # Thruster limits
 max_thrust_thr = 1.1 # N
@@ -106,3 +106,73 @@ plt.figlegend(legend_handles, [h.get_label() for h in legend_handles],
 # plt.show()
 plt.savefig(file_path + "reaction_wheel_actuator_commands.png",
             dpi=dpi, bbox_inches=bbox_inches)
+
+
+
+##################
+# Now the reverse. Command the reaction wheels and determine the spacecraft
+# torques.
+
+# Slowly ramp up the commanded actuator torques as a set of sinusoids (each 
+# offset in phase by 1/10 of a cycle).
+n_steps = 100
+t_steps = np.linspace(0, 100, n_steps)
+actuator_commanded = t_steps * max_torque_rw * 2
+
+actuator_sine_offset = np.pi / 10  * np.arange(actuator_rw.n_actuators)
+actuator_sine_wave = [np.sin(t_steps/10 + actuator_sine_offset[i]) for i in range(actuator_rw.n_actuators)]
+actuator_sine_wave = np.array(actuator_sine_wave).T
+assert actuator_sine_wave.shape == (n_steps, actuator_rw.n_actuators)
+
+actuator_applied_hist = np.zeros((n_steps, actuator_rw.n_actuators))
+actuator_command_hist = actuator_sine_wave.copy()
+mc_torque_hist = np.zeros((n_steps, 3))
+
+for idx in range(n_steps):
+    torque_mc, actual_command = actuator_rw.send_actuator_commands(actuator_sine_wave[idx])
+    actuator_applied_hist[idx, :] = actual_command
+    # actuator_command_hist[idx, :] = actuator_sine_wave[idx]
+    mc_torque_hist[idx, :] = torque_mc
+
+# Plot the results
+# Left is the actuator commands, right is the spacecraft torques
+# fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+fig, ax = plt.subplots(figsize=(8, 5))
+
+# Get the default color cycle
+colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+for act_idx in range(actuator_rw.n_actuators):
+    ax.plot(t_steps, actuator_command_hist[:, act_idx], 
+               label=f"Actuator {act_idx+1} [Commanded]",
+               linestyle="--", 
+               color=colors[act_idx])
+    ax.plot(t_steps, actuator_applied_hist[:, act_idx], 
+               label=f"Actuator {act_idx+1} [Realized]",
+               color=colors[act_idx])
+    
+ax.set_ylabel(f"Angular Momentum Change (Nm)")
+ax.set_xlabel(f"Simulation Time (s)")
+ax.set_ylim(-1.2, 1.2)
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.tight_layout()
+plt.savefig(file_path + "reaction_wheel_actuator_to_mc_torque_actuator_side.png",
+            dpi=dpi, bbox_inches=bbox_inches)
+
+# Plot the spacecraft torques
+fig, ax = plt.subplots(figsize=(8, 5))
+
+for mc_idx in range(3):
+    ax.plot(t_steps, mc_torque_hist[:, mc_idx], 
+               label=f"MC Torque {mc_idx+1}")
+    
+ax.set_ylabel(f"Spacecraft Torque (Nm)")
+ax.set_xlabel(f"Simulation Time (s)")
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+plt.tight_layout()
+# plt.show()
+plt.savefig(file_path + "reaction_wheel_actuator_to_mc_torque_spacecraft_side.png",
+            dpi=dpi, bbox_inches=bbox_inches)
+
+
