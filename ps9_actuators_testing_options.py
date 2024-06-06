@@ -46,7 +46,7 @@ fig.subplots_adjust(right=0.7)
 for r_ind, rw in enumerate(a_rw.T):
     # Axial line
     ax.plot([rw[0], 2*rw[0]], [rw[1], 2*rw[1]], [rw[2], 2*rw[2]], 'o-',
-            label=f"Wheel {r_ind+1}")
+            label=f"Wheel {r_ind+1} Axis")
 
 # Plot the unit cube
 labelled_cube = False
@@ -123,6 +123,9 @@ print(a_thruster.shape)
 print("Pseudo-inverse")
 print(a_thruster_pinv)
 print(a_thruster_pinv.shape)
+print("LaTeX format")
+for idx in a_thruster_pinv:
+    print(" & ".join([f"{val:.3f}" for val in idx]) + r" \\")
 print("Check pseudo-inverse")
 print(a_thruster @ a_thruster_pinv)
 print(a_thruster_pinv @ a_thruster)
@@ -226,18 +229,11 @@ ax.set_xlabel('Y [m]')
 ax.set_ylabel('Z [m]')
 
 ax.set_aspect('equal')
-# y_lims = ax.set_ylim([-1, 1])
-# z_lims = ax.set_zlim([-1, 1])
-
-# y_length = y_lims[1] - y_lims[0]
-# z_length = z_lims[1] - z_lims[0]
 
 ax.set_xticks(np.linspace(y_lims[0], y_lims[1], 5))
 ax.set_yticks(np.linspace(z_lims[0], z_lims[1], 5))
 
-# ax.view_init(elev=30, azim=115)
-# ax.set_box_aspect([1.0, 1.0, 1.0])
-# ax.set_box_aspect([x_length, y_length, z_length])
+ax.invert_xaxis()
 plt.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))
 # plt.title("Thruster positions and axes")
 plt.tight_layout()
