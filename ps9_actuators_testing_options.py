@@ -49,20 +49,23 @@ for r_ind, rw in enumerate(a_rw.T):
             label=f"Wheel {r_ind+1}")
 
 # Plot the unit cube
+labelled_cube = False
 normalizer = 1/np.sqrt(3)
 for xsign in [-1 * normalizer, 1 * normalizer]:
     for ysign in [-1 * normalizer, 1 * normalizer]:
         for zsign in [-1 * normalizer, 1 * normalizer]:
             ax.plot([xsign, xsign], [ysign, ysign], [zsign, -zsign], 'k:')
             ax.plot([xsign, xsign], [ysign, -ysign], [zsign, zsign], 'k:')
-            ax.plot([xsign, -xsign], [ysign, ysign], [zsign, zsign], 'k:')
+            ax.plot([xsign, -xsign], [ysign, ysign], [zsign, zsign], 'k:',
+                    label=f"Cube" if not labelled_cube else None)
+            labelled_cube = True
 
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 # ax.set_box_aspect([1.0, 1.0, 1.0])
 plt.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))
-plt.title("Reaction wheel axes")
+# plt.title("Reaction wheel axes")
 plt.tight_layout()
 plt.savefig(file_path + "rw_axes.png", dpi=dpi, bbox_inches=bbox_inches)
 # plt.show()
@@ -183,7 +186,7 @@ ax.view_init(elev=30, azim=115)
 # ax.set_box_aspect([1.0, 1.0, 1.0])
 ax.set_box_aspect([x_length, y_length, z_length])
 plt.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))
-plt.title("Thruster positions and axes")
+# plt.title("Thruster positions and axes")
 plt.tight_layout()
 fig.savefig(file_path + "thruster_axes.png", dpi=dpi, bbox_inches=bbox_inches)
 # fig.show()
@@ -236,7 +239,7 @@ ax.set_yticks(np.linspace(z_lims[0], z_lims[1], 5))
 # ax.set_box_aspect([1.0, 1.0, 1.0])
 # ax.set_box_aspect([x_length, y_length, z_length])
 plt.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))
-plt.title("Thruster positions and axes")
+# plt.title("Thruster positions and axes")
 plt.tight_layout()
 fig.savefig(file_path + "thruster_axes_2d.png", dpi=dpi, bbox_inches=bbox_inches)
 # fig.show()
