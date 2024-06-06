@@ -188,3 +188,55 @@ plt.tight_layout()
 fig.savefig(file_path + "thruster_axes.png", dpi=dpi, bbox_inches=bbox_inches)
 # fig.show()
 
+
+###########################
+# Plot the 2D projections of the thruster positions and axes on the yz plane
+
+fig, ax = plt.subplots()
+
+labelled_loa = False
+loa_factor = 2.5
+for t_ind, (thruster_pos, thruster_angle) in enumerate(zip(thruster_positions, thruster_angles)):
+
+    # Plot the line of action
+    ax.plot([thruster_pos[1] - loa_factor * thruster_angle[1], thruster_pos[1]],
+            [thruster_pos[2] - loa_factor * thruster_angle[2], thruster_pos[2]],
+            'k:',
+            label=f"Line of action" if not labelled_loa else None)
+    labelled_loa = True
+    # Thruster position and axis
+    ax.plot([thruster_pos[1], thruster_pos[1] + thruster_angle[1]],
+            [thruster_pos[2], thruster_pos[2] + thruster_angle[2]], 'o-',
+            label=f"Thruster {t_ind+1}")
+
+
+# Origin
+ax.plot([0], [0], 'kx', label='Center of mass')
+
+# Hub circle
+theta = np.linspace(0, 2*np.pi, 100)
+y = hub_rad * np.cos(theta)
+z = hub_rad * np.sin(theta)
+ax.plot(y, z, 'r--', label='Hub circle', zorder=-1)
+
+ax.set_xlabel('Y [m]')
+ax.set_ylabel('Z [m]')
+
+ax.set_aspect('equal')
+# y_lims = ax.set_ylim([-1, 1])
+# z_lims = ax.set_zlim([-1, 1])
+
+# y_length = y_lims[1] - y_lims[0]
+# z_length = z_lims[1] - z_lims[0]
+
+ax.set_xticks(np.linspace(y_lims[0], y_lims[1], 5))
+ax.set_yticks(np.linspace(z_lims[0], z_lims[1], 5))
+
+# ax.view_init(elev=30, azim=115)
+# ax.set_box_aspect([1.0, 1.0, 1.0])
+# ax.set_box_aspect([x_length, y_length, z_length])
+plt.legend(loc='center left', bbox_to_anchor=(1.2, 0.5))
+plt.title("Thruster positions and axes")
+plt.tight_layout()
+fig.savefig(file_path + "thruster_axes_2d.png", dpi=dpi, bbox_inches=bbox_inches)
+# fig.show()
