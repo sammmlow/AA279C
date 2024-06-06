@@ -8,6 +8,9 @@ file_path = "figures/ps9/PS9-ACTUATOR-OPTS-"
 dpi=200
 bbox_inches='tight'
 
+
+rom_save_path = "rom/ps9_actuator_"
+
 # First just check that the mounting matrices have reasonable pseudo-inverses
 a_rw = 1/np.sqrt(3) * np.array(
     [[ 1,  1,  1],
@@ -19,6 +22,9 @@ a_rw = 1/np.sqrt(3) * np.array(
      [-1, -1,  1],
      [-1, -1, -1]]
 ).T
+
+np.savetxt(rom_save_path + "reaction_wheel_mounting_matrix.csv", a_rw,
+           delimiter=",")
 
 a_rw_pinv = np.linalg.pinv(a_rw)
 
@@ -113,6 +119,9 @@ for i in range(4):
 
 a_thruster = np.array(mounting_vectors).T
 a_thruster_pinv = np.linalg.pinv(a_thruster)
+
+np.savetxt(rom_save_path + "thruster_mounting_matrix.csv", a_thruster,
+           delimiter=",")
 
 print("Thruster matrix")
 print("Thruster positions")
