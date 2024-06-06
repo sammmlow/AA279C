@@ -137,7 +137,7 @@ for idx in range(n_steps):
 # Plot the results
 # Left is the actuator commands, right is the spacecraft torques
 # fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
-fig, ax = plt.subplots(figsize=(8, 5))
+fig, ax = plt.subplots(figsize=(6, 4))
 
 # Get the default color cycle
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -160,7 +160,7 @@ plt.savefig(file_path + "reaction_wheel_actuator_to_mc_torque_actuator_side.png"
             dpi=dpi, bbox_inches=bbox_inches)
 
 # Plot the spacecraft torques
-fig, ax = plt.subplots(figsize=(8, 5))
+fig, ax = plt.subplots(figsize=(6, 4))
 
 for mc_idx in range(3):
     ax.plot(t_steps, mc_torque_hist[:, mc_idx], 
