@@ -30,7 +30,7 @@ def skew( v ):
 
 bool_enable_perturbations = True
 bool_enable_active_control = True
-bool_plot_orbit = True
+bool_plot_orbit = False
 
 # ===========================================================================
 # Parameters for non-linear control law derived from Lyapunov theory
@@ -193,3 +193,25 @@ plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
                   states_qtrBN, nil, nil, nil, states_angle, states_ohmBN,
                   states_pos, states_pos_sampled, states_dcm_sampled,
                   states_qtrBR, states_ohmBR, bool_plot_orbit, states_ctrl )
+
+# Add plot mapping control torques to individual reaction wheel torques.
+A_rw_inv = (np.sqrt(3)/8.0) * np.array([[ 1,  1,  1],
+                                        [ 1,  1, -1],
+                                        [ 1, -1,  1],
+                                        [ 1, -1, -1],
+                                        [-1,  1,  1],
+                                        [-1,  1, -1],
+                                        [-1, -1,  1],
+                                        [-1, -1, -1]])
+max_rw_torque = 0.25
+rw_torques = A_rw_inv @ states_ctrl
+
+plt.figure()
+for i in range(8):
+    plt.plot( timeAxis[::skip], rw_torques[i, ::skip], alpha = 0.75 )
+plt.grid()
+plt.show()
+plt.xlabel('Simulation time [sec]')
+plt.ylabel('Individual Reaction Wheel Torques [N m]')
+plt.legend(['RW1','RW2','RW3','RW4','RW5','RW6','RW7','RW8'])
+plt.savefig(file_path + 'RW-Torques.png', dpi=200, bbox_inches='tight')
