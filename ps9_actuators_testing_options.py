@@ -49,6 +49,8 @@ for r_ind, rw in enumerate(a_rw.T):
             label=f"Wheel {r_ind+1} Axis")
 
 # Plot the unit cube
+# Technically... some of the lines are redundant, but it's easier to just plot 
+# them all
 labelled_cube = False
 normalizer = 1/np.sqrt(3)
 for xsign in [-1 * normalizer, 1 * normalizer]:
