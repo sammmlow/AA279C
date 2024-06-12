@@ -28,10 +28,10 @@ plt.close("all")
 
 bool_enable_perturbations = True
 bool_enable_active_control = True
-bool_plot_orbit = False
+bool_plot_orbit = True
 
 # ===========================================================================
-# Parameters for linearized PID controller
+# Parameters for non-linear MRP-based Lyapunov control law
 # ===========================================================================
 
 Kp = -np.array([5E-8, 1E-6, 5E-7])
@@ -212,7 +212,7 @@ def make_noisy_measurements( catalog, true_quaternion, true_omega, bias ):
 # ===========================================================================
 
 period = 86400
-number_of_orbits = 1
+number_of_orbits = 2
 duration = number_of_orbits * period
 now, n, timestep = 0.0, 0, 120.0
 samples = int(duration / timestep)
@@ -256,8 +256,21 @@ states_storq = np.zeros(( 3, samples ))
 
 states_ctrl = np.zeros(( 3, samples ))
 
-states_pos_sampled = np.zeros(( 3, samples ))
-states_dcm_sampled = np.zeros(( 3, 3, samples ))
+# ===========================================================================
+# Containers for plotting DCM triads on the orbit plots...
+# ===========================================================================
+ 
+big_samples = 12
+
+sample_idx_1 = 0 # Just a counter for plotting attitude triads in 3D...
+sample_time_trigger_1 = np.linspace(0, period, big_samples + 1)[:-1]
+states_pos_sampled_1 = np.zeros(( 3, big_samples ))    # Pre-rendezvous
+states_dcm_sampled_1 = np.zeros(( 3, 3, big_samples )) # Pre-rendezvous
+
+sample_idx_2 = 0 # Just a counter for plotting attitude triads in 3D...
+sample_time_trigger_2 = np.linspace(period, 2*period, big_samples + 1)[:-1]
+states_pos_sampled_2 = np.zeros(( 3, big_samples ))    # During rendezvous
+states_dcm_sampled_2 = np.zeros(( 3, 3, big_samples )) # During rendezvous
 
 
 # ===========================================================================
@@ -269,6 +282,8 @@ sc = Spacecraft( elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6],
 
 initial_omega = -np.array([0, 0, sc.n])
 initial_dcm = sc.get_hill_frame().T  # RTN2ECI
+
+slew_for_rendezvous = dcmZ(-np.pi/2) # For rotation mid-operation.
 
 sc.ohmBN = initial_omega
 sc.attBN = QTR( dcm = initial_dcm )
@@ -311,8 +326,36 @@ while now < duration:
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
 
     # Compute reference-to-inertial omegas and attitudes.
-    ohmRN = initial_omega
-    attRN = QTR( dcm = sc.get_hill_frame().T ) # RTN2ECI
+    
+    # First stage of the rendezvous process is simply RTN aligned.
+    # The following set of hardcoded gains work well...
+    if (now <= period):
+        Kp = -np.array([5E-8, 1E-6, 5E-7])
+        Kd = -np.array([1E-4, 1E-4, 1E-5])
+        ohmRN = initial_omega
+        attRN = QTR( dcm = sc.get_hill_frame().T ) # RTN2ECI
+        
+        # Sample DCM for plotting triads later on.
+        if sample_idx_1 < big_samples:
+            if (now >= sample_time_trigger_1[ sample_idx_1 ]):
+                states_pos_sampled_1[:, sample_idx_1] = sc.states[0:3]
+                states_dcm_sampled_1[:, :, sample_idx_1] = sc.attBN.dcm
+                sample_idx_1 += 1
+        
+    # Second stage requires negative X to be pointing in along-track.
+    else:
+        print("Getting ready for rendezvous!")
+        Kp = -np.array([1E-5, 2E-7, 3E-6])
+        Kd = -np.array([4E-3, 1E-4, 1.5E-4])
+        ohmRN = slew_for_rendezvous @ initial_omega
+        attRN = QTR( dcm = slew_for_rendezvous @ sc.get_hill_frame().T )
+        
+        # Sample DCM for plotting triads later on.
+        if sample_idx_2 < big_samples:
+            if (now >= sample_time_trigger_2[ sample_idx_2 ]):
+                states_pos_sampled_2[:, sample_idx_2] = sc.states[0:3]
+                states_dcm_sampled_2[:, :, sample_idx_2] = sc.attBN.dcm
+                sample_idx_2 += 1
     
     # Compute body-to-reference (controller error) omegas and attitudes.
     # Note that we are NOT using sc.attBN, which is ground truth. Rather,
@@ -334,13 +377,6 @@ while now < duration:
     # Store body-to-reference (controller error) omegas and attitudes.
     states_ohmBR[:, n] = ohmBR
     states_qtrBR[:, n] = qtrBR
-
-    # # Sample DCM for plotting triads later on.
-    # if (now >= sample_trigger_count):
-    #     states_pos_sampled[:, nBig] = sc.states[0:3]
-    #     states_dcm_sampled[:, :, nBig] = sc.attBN.dcm
-    #     sample_trigger_count += sample_trigger_interval
-    #     nBig += 1
     
     # Initialize total torques
     pert_torque = np.zeros(3)
@@ -556,27 +592,39 @@ nil = np.array([])
 
 plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
                   states_qtrBN, nil, nil, nil, states_angle, states_ohmBN,
-                  states_pos, states_pos_sampled, states_dcm_sampled,
-                  states_qtrBR, states_ohmBR, bool_plot_orbit, states_ctrl )
+                  states_pos, nil, nil, states_qtrBR, states_ohmBR,
+                  False, states_ctrl )
 
-# # Add plot mapping control torques to individual reaction wheel torques.
-# A_rw_inv = (np.sqrt(3)/8.0) * np.array([[ 1,  1,  1],
-#                                         [ 1,  1, -1],
-#                                         [ 1, -1,  1],
-#                                         [ 1, -1, -1],
-#                                         [-1,  1,  1],
-#                                         [-1,  1, -1],
-#                                         [-1, -1,  1],
-#                                         [-1, -1, -1]])
-# max_rw_torque = 0.25
-# rw_torques = A_rw_inv @ states_ctrl
+# Just plot pre-rendezvous orbit plots...
+plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
+                  nil, nil, nil, nil, nil, nil, states_pos, 
+                  states_pos_sampled_1, states_dcm_sampled_1,
+                  nil, nil, bool_plot_orbit, nil, 'Period1-')
 
-# plt.figure()
-# for i in range(8):
-#     plt.plot( timeAxis[::skip], rw_torques[i, ::skip], alpha = 0.75 )
-# plt.grid()
-# plt.show()
-# plt.xlabel('Simulation time [sec]')
-# plt.ylabel('Individual Reaction Wheel Torques [N m]')
-# plt.legend(['RW1','RW2','RW3','RW4','RW5','RW6','RW7','RW8'])
-# plt.savefig(file_path + 'RW-Torques.png', dpi=200, bbox_inches='tight')
+# Just plot during-rendezvous orbit plots...
+plot_everything( timeAxis, skip, period, number_of_orbits, file_path,
+                  nil, nil, nil, nil, nil, nil, states_pos, 
+                  states_pos_sampled_2, states_dcm_sampled_2,
+                  nil, nil, bool_plot_orbit, nil, 'Period2-')
+
+# Add plot mapping control torques to individual reaction wheel torques.
+A_rw_inv = (np.sqrt(3)/8.0) * np.array([[ 1,  1,  1],
+                                        [ 1,  1, -1],
+                                        [ 1, -1,  1],
+                                        [ 1, -1, -1],
+                                        [-1,  1,  1],
+                                        [-1,  1, -1],
+                                        [-1, -1,  1],
+                                        [-1, -1, -1]])
+max_rw_torque = 0.25
+rw_torques = A_rw_inv @ states_ctrl
+
+plt.figure()
+for i in range(8):
+    plt.plot( timeAxis[::skip], rw_torques[i, ::skip], alpha = 0.75 )
+plt.grid()
+plt.show()
+plt.xlabel('Simulation time [sec]')
+plt.ylabel('Individual Reaction Wheel Torques [N m]')
+plt.legend(['RW1','RW2','RW3','RW4','RW5','RW6','RW7','RW8'])
+plt.savefig(file_path + 'RW-Torques.png', dpi=200, bbox_inches='tight')

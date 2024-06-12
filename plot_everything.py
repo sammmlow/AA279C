@@ -17,7 +17,8 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
                      states_storq, states_angle, states_omega,
                      states_pos, states_pos_sampled, states_dcm_sampled,
                      states_quatr_ref = empty, states_omega_ref = empty,
-                     plot_orbit_bool = False, states_ctrl = [] ):
+                     plot_orbit_bool = False, states_ctrl = [],
+                     plot_orbit_filename = ''):
     
     # ========================================================================
     # Plot body-to-inertial quaternions.
@@ -227,7 +228,8 @@ def plot_everything( timeAxis, skip, period, number_of_periods, file_path,
                                 states_pos_sampled, 
                                 states_dcm_sampled)
         plt.tight_layout()
-        plt.savefig(file_path + 'Orbit3D.png', dpi=200, bbox_inches='tight')
+        strFile = plot_orbit_filename + '-Orbit3D.png'
+        plt.savefig(file_path + strFile, dpi=200, bbox_inches='tight')
         
     # ========================================================================
     # Plot controller torques
