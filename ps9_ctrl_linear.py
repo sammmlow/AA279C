@@ -43,11 +43,11 @@ sc = Spacecraft( elements = [42164, 1E-6, 1E-6, 1E-6, 1E-6, 1E-6],
                  inertia = np.diag( [4770.398, 6313.894, 7413.202] ) )
 
 # Get the spacecraft into RTN configuration.
-initial_omega = np.array([0, 0, sc.n])
+initial_omega = -np.array([0, 0, sc.n])
 initial_dcm = sc.get_hill_frame().T  # RTN2ECI
 
 # Body (B) to inertial (N) angular velocity and attitude
-sc.ohmBN = -initial_omega
+sc.ohmBN = initial_omega
 sc.attBN = QTR( dcm = initial_dcm )
 
 
@@ -56,7 +56,7 @@ sc.attBN = QTR( dcm = initial_dcm )
 # ===========================================================================
 
 period = 86400
-number_of_orbits = 5
+number_of_orbits = 1
 duration = number_of_orbits * period
 now, n, timestep = 0.0, 0, 120.0
 nBig = 0  # Just a counter for plotting attitude triads in 3D...
@@ -107,7 +107,7 @@ while now < duration:
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
 
     # Compute reference-to-inertial omegas and attitudes.
-    ohmRN = -initial_omega
+    ohmRN = initial_omega
     attRN = QTR( dcm = sc.get_hill_frame().T ) # RTN2ECI
 
     # Compute body-to-reference (controller error) omegas and attitudes.
@@ -161,7 +161,6 @@ while now < duration:
         mrpBR = MRP( dcm = qtrBR.dcm )
         mrpBR_dot = mrpBR.get_mrpRate( ohmBR )
         ctrl_torque = Kp * mrpBR.mrp + Kd * mrpBR_dot
-        # ctrl_gyro_terms = 2 * np.cross(ohmBR, sc.inertia) @ sc.ohmBN
     
     # Store control torque.
     states_ctrl[:, n] = ctrl_torque
