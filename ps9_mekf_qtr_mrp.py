@@ -127,7 +127,7 @@ def meas_update( mean, cov, quat, catalog, meas_stars, meas_omega, R ):
     # Compute the sensitivity matrix with dimensions (3n + 3) x 9
     H_mrp = np.zeros((3 * N, 3))
     for n in range(N):
-        H_mrp[ (3 * n):(3 * n + 3), 0:3 ] = 4 * skew(model_stars[:, n])
+        H_mrp[ (3 * n):(3 * n + 3), 0:3 ] = 4 * DCM_N2B @ skew(catalog[n, 0:3])
     ZN3 = np.zeros((3 * N, 3))
     H = np.block([[H_mrp, ZN3, ZN3], [Z3, I3, I3]])
     
@@ -140,7 +140,7 @@ def meas_update( mean, cov, quat, catalog, meas_stars, meas_omega, R ):
     # unit direction are all contiguous.
     residuals = np.concatenate([ (meas_stars - model_stars).T.reshape(3 * N),
                                  (meas_omega - model_omega) ])
-    
+    # Residuals are unit vectors expressed in body frame 
     # Kalman gain, state mean and cov update.
     I9 = np.identity(9)
     K = cov @ H.T @ np.linalg.inv(H @ cov @ H.T + R)
@@ -247,21 +247,21 @@ true_bias = 0.0001 * np.ones(3) # rad/s
 # been (very painstakingly) fine-tuned manually! Exercise caution below!
 # ===========================================================================
 
-quaternion = QTR()
+quaternion = QTR( dcm = make_noisy_dcm() @ initial_dcm )
 mean = np.zeros(9)
 
 # Initialize with some noisy omega plus bias.
 mean[3:6] = make_noisy_dcm() @ initial_omega
 
 # Initial covariance: [Error MRPs, omegas, and omega biases]
-covariance = np.diag([5E-1] * 3 + [9E-8] * 3 + [1E-5] * 3)
+covariance = np.diag([5E-3] * 3 + [5E-10] * 3 + [1E-6] * 3)
 covariance_history[:, :, 0] = covariance
 
 # Manually fine-tuned filter process noise
-Q = np.diag([5E-7] * 3 + [1E-10] * 3 + [1E-10] * 3)
+Q = np.diag([3E-5] * 3 + [5E-11] * 3 + [1E-12] * 3)
 
 # Manually fine-tuned filter measurement noise
-R = np.diag([5E-3] * (3 * nStars) + [1E-10] * 3)
+R = np.diag([1E-5] * (3 * nStars) + [1E-12] * 3)
 
 
 # ===========================================================================
