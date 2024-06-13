@@ -562,25 +562,25 @@ plt.xlabel('Samples'); plt.ylabel('Angular velocity meas residuals (rad/s)')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'ResdOmega.png', dpi=200, bbox_inches='tight')
 
-# # Plot histograms of the residuals
-# print("Plotting histograms of the residuals")
-# plt.figure()
-# plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
-# plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
-# plt.grid('on')
-# plt.xlabel('Star tracker residuals (unitless)');
-# plt.ylabel('Estimated PDF')
-# plt.legend(["Prefit", "Postfit"])
-# plt.savefig(file_path + 'HistStarRes.png', dpi=200, bbox_inches='tight')
+# Plot histograms of the residuals
+print("Plotting histograms of the residuals")
+plt.figure()
+plt.hist(prefit_samples[0,:], bins=50, alpha=0.5, density=True)
+plt.hist(posfit_samples[0,:], bins=50, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Star tracker residuals (unitless)');
+plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistStarRes.png', dpi=200, bbox_inches='tight')
 
-# plt.figure()
-# plt.hist(prefit_samples[1,:], bins=50, alpha=0.5, density=True)
-# plt.hist(posfit_samples[1,:], bins=50, alpha=0.5, density=True)
-# plt.grid('on')
-# plt.xlabel('Angular velocity meas residuals (rad/s)');
-# plt.ylabel('Estimated PDF')
-# plt.legend(["Prefit", "Postfit"])
-# plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
+plt.figure()
+plt.hist(prefit_samples[1,:], bins=50, alpha=0.5, density=True)
+plt.hist(posfit_samples[1,:], bins=50, alpha=0.5, density=True)
+plt.grid('on')
+plt.xlabel('Angular velocity meas residuals (rad/s)');
+plt.ylabel('Estimated PDF')
+plt.legend(["Prefit", "Postfit"])
+plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
 
 # # ===========================================================================
 # # Plot everything!
