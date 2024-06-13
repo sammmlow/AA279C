@@ -314,16 +314,77 @@ R = np.diag([1E-5] * (3 * nStars) + [5E-10] * 3)
 
 
 # ===========================================================================
+# Functions for computing HCW STM for relative orbital motion. Here we also
+# initialize the target spacecraft (we assume is separated 1km "ahead").
+# ===========================================================================
+
+# 1km ahead of our spacecraft
+sc_target = Spacecraft( elements = [42164, 1E-9, 1E-9, 1E-9, 1E-9, 2.472E-6] )
+
+# Set the target of our spacecraft to track the chief.
+sc.chief = sc_target
+
+# Function to compute discrete STM (RR) for HCW dynamics.
+def compute_hcw_stm_rr(n, t):
+    nt = n*t
+    phi_rr = np.zeros((3,3))
+    phi_rr[0,0] = 4 - 3 * np.cos(nt)
+    phi_rr[1,0] = 6 * (np.sin(nt) - nt)
+    phi_rr[1,1] = 1.0
+    phi_rr[2,2] = np.cos(nt)
+    return phi_rr
+
+# Function to compute discrete STM (RR) for HCW dynamics.
+def compute_hcw_stm_rv(n, t):
+    nt = n*t;
+    phi_rv = np.zeros((3,3));
+    phi_rv[0,0] = np.sin(nt) / n;
+    phi_rv[0,1] = 2 * (1 - np.cos(nt)) / n;
+    phi_rv[1,0] = 2 * (np.cos(nt) - 1) / n;
+    phi_rv[1,1] = 4 * np.sin(nt) / n - 3 * t;
+    phi_rv[2,2] = np.sin(nt) / n;
+    return phi_rv
+
+from numpy.linalg import inv
+
+# Function to compute the Delta-V impulse necessary to perform rendezvous.
+def compute_impulse_dv(n, time_of_flight, r0_rtn, v0_rtn):
+    stm_rr = compute_hcw_stm_rr( n, time_of_flight )
+    stm_rv = compute_hcw_stm_rv( n, time_of_flight )
+    desired_initial_vel_rtn = -inv(stm_rv) @ stm_rr @ r0_rtn
+    delta_v = desired_initial_vel_rtn - v0_rtn
+    return delta_v
+
+# Here's a boolean to trigger the rendezvous,
+bool_applied_delta_v = False
+bool_finished_delta_v = False
+
+# Containers to store RTN states for plotting...
+states_relative_rtn = np.zeros(( 3, samples ))
+states_relative_pos_sampled_2 = np.zeros(( 3, big_samples ))
+
+# ===========================================================================
 # Actual dynamics simulation, with the MEKF operations called below.
 # ===========================================================================
 
 while now < duration:
+    
+    # Switch off thruster on next time step.
+    if bool_applied_delta_v == True and bool_finished_delta_v == False:
+        sc.forces['maneuvers'] = False
+        sc.set_thruster_acceleration(np.zeros(3))
+        bool_finished_delta_v = True
     
     # Store spacecraft states.
     states_pos[:, n] = sc.states[0:3]
     states_ohmBN[:, n] = sc.ohmBN
     states_qtrBN[:, n] = sc.attBN.qtr
     states_angle[:, n] = sc.attBN.get_euler_angles_321()
+    
+    # Compute and store the relative positions to target for plotting later.
+    sc.update_relative_motion() # To update the RTN states...
+    pRTN = np.array([ sc.pR, sc.pT, sc.pN ])
+    states_relative_rtn[:, n] = pRTN
 
     # Compute reference-to-inertial omegas and attitudes.
     
@@ -355,7 +416,27 @@ while now < duration:
             if (now >= sample_time_trigger_2[ sample_idx_2 ]):
                 states_pos_sampled_2[:, sample_idx_2] = sc.states[0:3]
                 states_dcm_sampled_2[:, :, sample_idx_2] = sc.attBN.dcm
+                states_relative_pos_sampled_2[:, sample_idx_2] = pRTN
                 sample_idx_2 += 1
+                
+            # Compute the Delta-V necessary for the rendezvous trajectory,
+            if bool_applied_delta_v == False and sample_idx_2 >= 6:
+                
+                r0_rtn = [sc.pR, sc.pT, sc.pN]
+                v0_rtn = [sc.vR, sc.vT, sc.vN]
+                dv_rtn = compute_impulse_dv(sc.n, period/2, r0_rtn, v0_rtn)
+                
+                # Toggle thrusters on
+                sc.forces['maneuvers'] = True
+                sc.set_force_frame('RTN')
+                sc.set_thruster_acceleration( dv_rtn / timestep )
+                
+                # dv_eci = sc.get_hill_frame().T @ dv_rtn # RTN2ECI
+                bool_applied_delta_v = True
+                print("applying dv!")
+                
+                # new_states = sc.states + np.concatenate((np.zeros(3), dv_eci))
+                # sc.states = new_states
     
     # Compute body-to-reference (controller error) omegas and attitudes.
     # Note that we are NOT using sc.attBN, which is ground truth. Rather,
@@ -415,8 +496,15 @@ while now < duration:
     states_ctrl[:, n] = ctrl_torque
     
     # Propagate the true spacecraft attitude and the angular velocity
-    sc.propagate_orbit(timestep)
+    if bool_applied_delta_v == True and bool_finished_delta_v == False:
+        sc.propagate_perturbed(timestep, timestep)
+    else:
+        sc.propagate_orbit(timestep)
     sc.propagate_attitude(timestep, torque = pert_torque + ctrl_torque )
+    
+    # Propagate the target spacecraft orbit only. Ignore attitude.
+    sc_target.propagate_orbit(timestep)
+    
     
     # Perform the MEKF time update
     mean, covariance, quaternion = time_update(
@@ -582,9 +670,9 @@ plt.ylabel('Estimated PDF')
 plt.legend(["Prefit", "Postfit"])
 plt.savefig(file_path + 'HistOmegaRes.png', dpi=200, bbox_inches='tight')
 
-# # ===========================================================================
-# # Plot everything!
-# # ===========================================================================
+# ===========================================================================
+# Plot everything!
+# ===========================================================================
 
 from plot_everything import plot_everything
 
@@ -628,3 +716,21 @@ plt.xlabel('Simulation time [sec]')
 plt.ylabel('Individual Reaction Wheel Torques [N m]')
 plt.legend(['RW1','RW2','RW3','RW4','RW5','RW6','RW7','RW8'])
 plt.savefig(file_path + 'RW-Torques.png', dpi=200, bbox_inches='tight')
+
+# Plot the relative orbital trajectory.
+from source.plot_orbit_and_attitude import plot_orbit_and_attitude
+print("Plotting relative orbit and attitude triads (3D)")
+figOrbit = plt.figure(figsize=(10, 10))
+axesOrbit = figOrbit.add_subplot(111, projection='3d')
+plot_orbit_and_attitude(axesOrbit,
+                        states_relative_rtn[0, ::skip],
+                        states_relative_rtn[1, ::skip],
+                        states_relative_rtn[2, ::skip], 
+                        states_relative_pos_sampled_2, 
+                        states_dcm_sampled_2,
+                        earth=False,
+                        size=0.007)
+plt.tight_layout()
+strFile = '-Rendezvous-3D.png'
+plt.savefig(file_path + strFile, dpi=200, bbox_inches='tight')
+states_relative_rtn
